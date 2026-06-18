@@ -1,0 +1,62 @@
+# ============================================
+# Unreal Engine 5 Project - Git Ignore
+# ============================================
+
+# --------------------------------------------
+# Visual Studio / IDE
+# --------------------------------------------
+.vs/
+.vscode/
+*.sln
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+.idea/
+*.code-workspace
+
+# --------------------------------------------
+# UE5 Generated / Build Artifacts
+# --------------------------------------------
+Binaries/
+DerivedDataCache/
+Intermediate/
+Saved/
+Build/
+
+# --------------------------------------------
+# Content (keep only source assets, ignore cooked)
+# --------------------------------------------
+# Uncomment if you want to ignore cooked content
+# *_BuiltData.uasset
+
+# --------------------------------------------
+# Platform Specific
+# --------------------------------------------
+*.xcodeproj
+*.xcworkspace
+
+# --------------------------------------------
+# OS generated files
+# --------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# --------------------------------------------
+# Misc
+# --------------------------------------------
+*.log
+*.tmp
+*.swp
+*.pdb
+*.exp
+*.obj
+*.pyc
+__pycache__/
