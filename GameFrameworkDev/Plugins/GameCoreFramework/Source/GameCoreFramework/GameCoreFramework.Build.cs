@@ -29,7 +29,6 @@ public class GameCoreFramework : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"GameplayAbilities",
-				"CommonUtility",
 			}
 			);
 			

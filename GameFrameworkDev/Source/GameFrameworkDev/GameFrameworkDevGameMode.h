@@ -3,15 +3,14 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameCoreHUD.h"
-#include "GameFramework/GameModeBase.h"
+#include "GameCoreGameMode.h"
 #include "GameFrameworkDevGameMode.generated.h"
 
 /**
  *  Simple GameMode for a third person game
  */
 UCLASS(abstract)
-class AGameFrameworkDevGameMode : public AGameModeBase
+class AGameFrameworkDevGameMode : public AGameCoreGameMode
 {
 	GENERATED_BODY()
 

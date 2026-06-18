@@ -18,6 +18,7 @@ public class GameFrameworkDev : ModuleRules
 			"StateTreeModule",
 			"GameplayStateTreeModule",
 			"GameCoreFramework",
+			"SVRuntime",
 			"UMG",
 			"Slate"
 		});
