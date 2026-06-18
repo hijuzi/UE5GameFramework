@@ -14,7 +14,6 @@
 *.sln.docstates
 *.userprefs
 .idea/
-*.code-workspace
 
 # --------------------------------------------
 # UE5 Generated / Build Artifacts
@@ -24,6 +23,7 @@ DerivedDataCache/
 Intermediate/
 Saved/
 Build/
+Windows/
 
 # --------------------------------------------
 # Content (keep only source assets, ignore cooked)

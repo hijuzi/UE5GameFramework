@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/PlayerController.h"
+#include "GameCorePlayerController.h"
 #include "GameFrameworkDevPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -14,7 +14,7 @@ class UUserWidget;
  *  Manages input mappings
  */
 UCLASS(abstract)
-class AGameFrameworkDevPlayerController : public APlayerController
+class AGameFrameworkDevPlayerController : public AGameCorePlayerController
 {
 	GENERATED_BODY()
 	

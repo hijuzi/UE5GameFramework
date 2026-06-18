@@ -17,6 +17,7 @@ public class GameFrameworkDev : ModuleRules
 			"AIModule",
 			"StateTreeModule",
 			"GameplayStateTreeModule",
+			"GameCoreFramework",
 			"UMG",
 			"Slate"
 		});

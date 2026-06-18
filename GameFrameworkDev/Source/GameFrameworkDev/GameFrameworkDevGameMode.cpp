@@ -4,5 +4,5 @@
 
 AGameFrameworkDevGameMode::AGameFrameworkDevGameMode()
 {
-	// stub
+	HUDClass = AGameCoreHUD::StaticClass();
 }
