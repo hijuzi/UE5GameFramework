@@ -19,11 +19,6 @@
 			"Name": "CommonLoadingScreen",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
-		},
-		{
-			"Name": "CommonStartupLoadingScreen",
-			"Type": "ClientOnly",
-			"LoadingPhase": "PreLoadingScreen"
 		}
 	]
 }

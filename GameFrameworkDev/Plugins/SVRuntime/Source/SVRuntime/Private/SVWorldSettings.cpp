@@ -16,7 +16,7 @@ ASVWorldSettings::ASVWorldSettings(const FObjectInitializer& ObjectInitializer)
 FPrimaryAssetId ASVWorldSettings::GetDefaultGameplayExperience() const
 {
 	return DefaultGameplayExperience.ToSoftObjectPath().GetAssetPath().IsValid()
-		? FPrimaryAssetId(FPrimaryAssetType(USVExperienceDefinition::StaticClass()->GetFName()),
+		? FPrimaryAssetId(FPrimaryAssetType(USVBaseExperienceDefinition::StaticClass()->GetFName()),
 				FName(*DefaultGameplayExperience.ToSoftObjectPath().GetAssetPath().GetAssetName().ToString()))
 		: FPrimaryAssetId();
 }

@@ -8,7 +8,7 @@
 
 #define UE_API SVRUNTIME_API
 
-class USVExperienceDefinition;
+class USVBaseExperienceDefinition;
 
 /**
  * ASVWorldSettings
@@ -34,12 +34,12 @@ public:
 	UE_API FPrimaryAssetId GetDefaultGameplayExperience() const;
 
 	/** 获取默认的 Gameplay Experience 软引用 */
-	const TSoftClassPtr<USVExperienceDefinition>& GetDefaultGameplayExperienceSoftPtr() const { return DefaultGameplayExperience; }
+	const TSoftClassPtr<USVBaseExperienceDefinition>& GetDefaultGameplayExperienceSoftPtr() const { return DefaultGameplayExperience; }
 
 protected:
 	/** 该地图的默认 Experience，若未被用户覆盖则使用此配置 */
 	UPROPERTY(EditDefaultsOnly, Category = GameMode)
-	TSoftClassPtr<USVExperienceDefinition> DefaultGameplayExperience;
+	TSoftClassPtr<USVBaseExperienceDefinition> DefaultGameplayExperience;
 };
 
 #undef UE_API

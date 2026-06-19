@@ -10,12 +10,12 @@
 
 #define LOCTEXT_NAMESPACE "SVSystem"
 
-USVExperienceDefinition::USVExperienceDefinition()
+USVBaseExperienceDefinition::USVBaseExperienceDefinition()
 {
 }
 
 #if WITH_EDITOR
-EDataValidationResult USVExperienceDefinition::IsDataValid(FDataValidationContext& Context) const
+EDataValidationResult USVBaseExperienceDefinition::IsDataValid(FDataValidationContext& Context) const
 {
 	EDataValidationResult Result = CombineDataValidationResults(Super::IsDataValid(Context), EDataValidationResult::Valid);
 
@@ -24,7 +24,7 @@ EDataValidationResult USVExperienceDefinition::IsDataValid(FDataValidationContex
 #endif
 
 #if WITH_EDITORONLY_DATA
-void USVExperienceDefinition::UpdateAssetBundleData()
+void USVBaseExperienceDefinition::UpdateAssetBundleData()
 {
 	Super::UpdateAssetBundleData();
 }
