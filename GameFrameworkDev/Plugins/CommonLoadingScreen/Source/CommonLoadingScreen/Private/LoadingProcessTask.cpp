@@ -21,6 +21,7 @@
 		ULoadingProcessTask* NewLoadingTask = NewObject<ULoadingProcessTask>(LoadingScreenManager);
 		NewLoadingTask->SetShowLoadingScreenReason(ShowLoadingScreenReason);
 
+		// 注册到 LoadingScreenManager，使加载界面保持显示
 		LoadingScreenManager->RegisterLoadingProcessor(NewLoadingTask);
 		
 		return NewLoadingTask;
@@ -29,10 +30,17 @@
 	return nullptr;
 }
 
-void ULoadingProcessTask::Unregister()
+void ULoadingProcessTask::CompleteLoadingScreenProcessTask()
 {
+	// 标记任务完成，ShouldShowLoadingScreen 将返回 false
+	bIsComplete = true;
+
+	// 从 LoadingScreenManager 中取消注册，允许加载界面关闭
 	ULoadingScreenManager* LoadingScreenManager = Cast<ULoadingScreenManager>(GetOuter());
-	LoadingScreenManager->UnregisterLoadingProcessor(this);
+	if (LoadingScreenManager)
+	{
+		LoadingScreenManager->UnregisterLoadingProcessor(this);
+	}
 }
 
 void ULoadingProcessTask::SetShowLoadingScreenReason(const FString& InReason)
@@ -43,5 +51,7 @@ void ULoadingProcessTask::SetShowLoadingScreenReason(const FString& InReason)
 bool ULoadingProcessTask::ShouldShowLoadingScreen(FString& OutReason) const
 {
 	OutReason = Reason;
-	return true;
+
+	// 任务完成时不再需要保持加载界面
+	return !bIsComplete;
 }

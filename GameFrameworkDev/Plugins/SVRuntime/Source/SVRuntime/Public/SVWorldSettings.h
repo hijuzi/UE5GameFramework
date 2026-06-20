@@ -36,6 +36,10 @@ public:
 	/** 获取默认的 Gameplay Experience 软引用 */
 	const TSoftClassPtr<USVBaseExperienceDefinition>& GetDefaultGameplayExperienceSoftPtr() const { return DefaultGameplayExperience; }
 
+	/** 该关卡是否使用 Loading Screen（关闭后流程中不显示任何 Loading 界面） */
+	UPROPERTY(EditDefaultsOnly, Category = GameMode)
+	bool bUseLoadingScreen = true;
+
 protected:
 	/** 该地图的默认 Experience，若未被用户覆盖则使用此配置 */
 	UPROPERTY(EditDefaultsOnly, Category = GameMode)

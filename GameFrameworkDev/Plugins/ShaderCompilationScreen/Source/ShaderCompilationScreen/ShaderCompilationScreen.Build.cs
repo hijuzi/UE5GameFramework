@@ -1,10 +1,10 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Yuzhda Bohdan (Bitkovin) 2023
 
 using UnrealBuildTool;
 
-public class CommonStartupLoadingScreen : ModuleRules
+public class ShaderCompilationScreen : ModuleRules
 {
-	public CommonStartupLoadingScreen(ReadOnlyTargetRules Target) : base(Target)
+	public ShaderCompilationScreen(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -26,7 +26,7 @@ public class CommonStartupLoadingScreen : ModuleRules
 			new string[]
 			{
 				"Core",
-				// ... add other public dependencies that you statically link with here ...
+				"Niagara"
 			}
 			);
 			
@@ -38,9 +38,7 @@ public class CommonStartupLoadingScreen : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
-				"MoviePlayer",
-				"PreLoadScreen",
-				"DeveloperSettings"
+				// ... add private dependencies that you statically link with here ...	
 			}
 			);
 		

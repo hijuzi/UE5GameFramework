@@ -37,10 +37,6 @@ public:
 	//~ End UPrimaryDataAsset Interface
 
 public:
-	/** 该 Experience 是否使用 Loading Screen（关闭后流程中不显示任何 Loading 界面） */
-	UPROPERTY(EditAnywhere, Category = "UI")
-	bool bUseLoadingScreen = true;
-
 	/** 主界面类 */
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSoftClassPtr<UCommonActivatableWidget> MainScreenClass;

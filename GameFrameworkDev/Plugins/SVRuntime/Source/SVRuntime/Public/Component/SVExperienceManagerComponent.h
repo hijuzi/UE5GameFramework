@@ -53,11 +53,11 @@ protected:
 	/** Flow Step: 尝试显示主界面 */
 	void FlowStep_TryShowMainScreen(FControlFlowNodeRef SubFlow) { TryPushWidgetToLayer(SubFlow, MainScreenClass, false); }
 
+	/** 查询 WorldSettings，返回该关卡是否使用 Loading Screen */
+	bool ShouldUseLoadingScreen() const;
+
 	/** 是否应该显示 Loading Screen */
 	bool bShouldShowLoadingScreen = true;
-
-	/** Experience 配置是否使用 Loading Screen（从 SVBaseExperienceDefinition 读取） */
-	bool bUseLoadingScreen = true;
 
 	/** 前端的 FControlFlow 实例，管理流程步骤 */
 	TSharedPtr<FControlFlow> FrontEndFlow;

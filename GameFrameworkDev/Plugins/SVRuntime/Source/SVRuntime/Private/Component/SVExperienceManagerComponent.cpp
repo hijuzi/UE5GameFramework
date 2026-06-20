@@ -25,10 +25,22 @@ void USVExperienceManagerComponent::EndPlay(const EEndPlayReason::Type EndPlayRe
 	Super::EndPlay(EndPlayReason);
 }
 
+bool USVExperienceManagerComponent::ShouldUseLoadingScreen() const
+{
+	if (const UWorld* World = GetWorld())
+	{
+		if (const ASVWorldSettings* WorldSettings = Cast<ASVWorldSettings>(World->GetWorldSettings()))
+		{
+			return WorldSettings->bUseLoadingScreen;
+		}
+	}
+	return false;
+}
+
 bool USVExperienceManagerComponent::ShouldShowLoadingScreen(FString& OutReason) const
 {
-	// 如果 Experience 配置不使用 LoadingScreen，直接返回 false
-	if (!bUseLoadingScreen)
+	// 如果关卡配置不使用 LoadingScreen，直接返回 false
+	if (!ShouldUseLoadingScreen())
 	{
 		return false;
 	}
@@ -63,7 +75,6 @@ void USVExperienceManagerComponent::OnExperienceLoaded()
 			{
 			if (const USVBaseExperienceDefinition* ExperienceDef = GetDefault<USVBaseExperienceDefinition>(ExperienceClass))
 			{
-				bUseLoadingScreen = ExperienceDef->bUseLoadingScreen;
 				MainScreenClass = ExperienceDef->MainScreenClass;
 
 				// Login 类型的 Experience 额外提供 PressStartScreenClass 和 CompilingShadersScreenClass
