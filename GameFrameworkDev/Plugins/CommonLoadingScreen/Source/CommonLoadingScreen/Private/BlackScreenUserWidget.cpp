@@ -18,13 +18,12 @@ void UBlackScreenUserWidget::NativeConstruct()
 	const UCommonLoadingScreenSettings* Settings = GetDefault<UCommonLoadingScreenSettings>();
 	FadeInDuration = Settings->BlackScreenFadeInDuration;
 	FadeOutDuration = Settings->BlackScreenFadeOutDuration;
-	FadeEasing = Settings->BlackScreenFadeEasing;
 }
 
 TSharedRef<SWidget> UBlackScreenUserWidget::RebuildWidget()
 {
 	RootBorder = SNew(SBorder)
-		.BorderBackgroundColor(FLinearColor::Black)
+		.BorderBackgroundColor(FLinearColor::White)
 		.Padding(0);
 
 	// 初始状态：完全透明，等待 PlayFadeIn 调用
@@ -38,6 +37,22 @@ TSharedRef<SWidget> UBlackScreenUserWidget::RebuildWidget()
 	}
 
 	return RootBorder.ToSharedRef();
+}
+
+void UBlackScreenUserWidget::ReleaseSlateResources(bool bReleaseChildren)
+{
+	Super::ReleaseSlateResources(bReleaseChildren);
+	RootBorder.Reset();
+}
+
+bool UBlackScreenUserWidget::IsFading() const
+{
+	return FadeState != EFadeState::None;
+}
+
+bool UBlackScreenUserWidget::ShouldShowLoadingScreen_Implementation() const
+{
+	return true;
 }
 
 void UBlackScreenUserWidget::PlayFadeIn()
@@ -62,14 +77,15 @@ void UBlackScreenUserWidget::PlayFadeOut()
 
 	FadeState = EFadeState::FadingOut;
 	FadeElapsed = 0.0f;
-	// 不重置 RenderOpacity —— 保留当前值作为起点，避免跳变
+	SetRenderOpacity(1.0f);
+	SetVisibility(ESlateVisibility::Visible);
 }
 
 void UBlackScreenUserWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
-	if (FadeState == EFadeState::None)
+	if (!IsFading())
 	{
 		return;
 	}
@@ -107,16 +123,12 @@ float UBlackScreenUserWidget::ApplyEasing(float Alpha, EBlackScreenFadeEasing Ea
 {
 	switch (Easing)
 	{
-	case EBlackScreenFadeEasing::Linear:
+	case EBlackScreenFadeEasing::None:
 		return Alpha;
 	case EBlackScreenFadeEasing::EaseIn:
 		return Alpha * Alpha;
 	case EBlackScreenFadeEasing::EaseOut:
 		return Alpha * (2.0f - Alpha);
-	case EBlackScreenFadeEasing::EaseInOut:
-		return Alpha < 0.5f
-			? 2.0f * Alpha * Alpha
-			: 1.0f - FMath::Pow(-2.0f * Alpha + 2.0f, 2.0f) * 0.5f;
 	default:
 		return Alpha;
 	}

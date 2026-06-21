@@ -22,6 +22,16 @@ class UWorld;
 struct FFrame;
 struct FWorldContext;
 
+/** 界面加载状态（黑屏与加载界面共用） */
+UENUM()
+enum class ELoadScreenState : uint8
+{
+	None,			// 空闲
+	PendingLoad,	// 等待加载/显示中
+	Loaded,			// 已加载/已显示
+	PendingHide		// 等待隐藏中
+};
+
 /**
  * 负责加载界面的显示与隐藏
  */
@@ -54,7 +64,7 @@ public:
 	/** 返回加载界面当前是否正在显示 */
 	bool GetLoadingScreenDisplayStatus() const
 	{
-		return bCurrentlyShowingLoadingScreen;
+		return LoadingScreenState == ELoadScreenState::Loaded;
 	}
 
 	/** 当加载界面可见性发生变化时调用 */
@@ -67,34 +77,36 @@ public:
 	/** 返回黑屏界面当前是否正在显示 */
 	bool GetBlackScreenDisplayStatus() const
 	{
-		return bCurrentlyShowingBlackScreen;
+		return LoadBlackScreenState == ELoadScreenState::Loaded;
 	}
 
 	/** 当黑屏界面可见性发生变化时调用 */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBlackScreenVisibilityChangedDelegate, bool);
 	FORCEINLINE FOnBlackScreenVisibilityChangedDelegate& OnBlackScreenVisibilityChangedDelegate() { return BlackScreenVisibilityChanged; }
+
+	/** 返回当前 PreLoadMap 的目标地图名称 */
+	UFUNCTION(BlueprintPure, Category=LoadingScreen)
+	FString GetPreLoadMapName() const { return PreLoadMapName; }
 	
 private:
 	UE_API void HandlePreLoadMap(const FWorldContext& WorldContext, const FString& MapName);
 	UE_API void HandlePostLoadMap(UWorld* World);
 
-	/** 更新加载界面控件的显示与隐藏（ILoadingProcessInterface 条件驱动） */
-	UE_API void UpdateLoadingScreen();
+	/** 黑屏界面或加载界面是否处于缓动中 */
+	bool IsAnyScreenFading() const;
 
-	/** 更新黑屏界面的显示与隐藏（系统/引擎条件驱动） */
-	UE_API void UpdateBlackScreen();
+	/** 加载黑屏界面 */
+	UE_API void LoadBlackScreen();
 
-	/** 返回是否需要显示加载界面（合并的遗留检查）。 */
-	UE_API bool CheckForAnyNeedToShowLoadingScreen();
+	/** 加载加载界面 */
+	UE_API void LoadLoadingScreen();
+
 
 	/** 返回系统/引擎条件是否需要黑屏。 */
 	UE_API bool CheckForSystemNeedBlackScreen();
 
 	/** 返回是否有 ILoadingProcessInterface 需要显示 UMG 加载界面控件。 */
 	UE_API bool CheckForAnyLoadingProcessInterfaceNeed();
-
-	/** 返回是否想要显示加载界面（确实需要或人为强制显示）。 */
-	UE_API bool ShouldShowLoadingScreen();
 
 	/** 返回是否想要显示黑屏（系统级，带保持延迟）。 */
 	UE_API bool ShouldShowBlackScreen();
@@ -196,14 +208,20 @@ private:
 	/** 距离下次输出加载界面保持原因的日志还有多少秒 */
 	double TimeUntilNextLogHeartbeatSeconds = 0.0;
 
+	/** 当前 PreLoadMap 的目标地图名称 */
+	FString PreLoadMapName;
+
 	/** 是否处于 PreLoadMap 与 PostLoadMap 之间 */
 	bool bCurrentlyInLoadMap = false;
 
-	/** 加载界面当前是否正在显示 */
-	bool bCurrentlyShowingLoadingScreen = false;
 
-	/** 黑屏当前是否正在显示 */
-	bool bCurrentlyShowingBlackScreen = false;
+
+
+	/** 当前黑屏加载状态 */
+	ELoadScreenState LoadBlackScreenState = ELoadScreenState::None;
+
+	/** 当前加载界面状态 */
+	ELoadScreenState LoadingScreenState = ELoadScreenState::None;
 };
 
 #undef UE_API

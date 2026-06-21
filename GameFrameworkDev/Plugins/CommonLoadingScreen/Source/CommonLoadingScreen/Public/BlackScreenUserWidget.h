@@ -14,10 +14,9 @@ class SBorder;
 UENUM(BlueprintType)
 enum class EBlackScreenFadeEasing : uint8
 {
-	Linear		UMETA(DisplayName = "线性"),
+	None		UMETA(DisplayName = "无"),
 	EaseIn		UMETA(DisplayName = "缓入"),
 	EaseOut		UMETA(DisplayName = "缓出"),
-	EaseInOut	UMETA(DisplayName = "缓入缓出"),
 };
 
 /** 黑屏动画完成时广播 */
@@ -34,7 +33,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackScreenFadeCompleted);
  *   - PlayFadeIn() ：0 → 1，完成后触发 OnFadeInCompleted
  *   - PlayFadeOut()：1 → 0，完成后触发 OnFadeOutCompleted
  */
-UCLASS(BlueprintType, Blueprintable)
+UCLASS(Abstract, BlueprintType, Blueprintable)
 class COMMONLOADINGSCREEN_API UBlackScreenUserWidget : public UUserWidget
 {
 	GENERATED_BODY()
@@ -52,6 +51,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Black Screen")
 	void PlayFadeOut();
 
+	/** 是否正在缓动（淡入或淡出）中 */
+	UFUNCTION(BlueprintPure, Category = "Black Screen")
+	bool IsFading() const;
+
+	/** 判断是否需要显示加载界面，蓝图可重载 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Black Screen")
+	bool ShouldShowLoadingScreen() const;
+
 	/** 淡入动画完成时广播 */
 	UPROPERTY(BlueprintAssignable, Category = "Black Screen")
 	FOnBlackScreenFadeCompleted OnFadeInCompleted;
@@ -64,6 +71,7 @@ protected:
 	//~ UUserWidget interface
 	virtual void NativeConstruct() override;
 	virtual TSharedRef<SWidget> RebuildWidget() override;
+	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 private:
@@ -73,7 +81,7 @@ private:
 	/** 缓存的动画配置，在 NativeConstruct 中从 UCommonLoadingScreenSettings 读取 */
 	float FadeInDuration = 0.3f;
 	float FadeOutDuration = 0.3f;
-	EBlackScreenFadeEasing FadeEasing = EBlackScreenFadeEasing::EaseInOut;
+	EBlackScreenFadeEasing FadeEasing = EBlackScreenFadeEasing::None;
 
 	enum class EFadeState : uint8 { None, FadingIn, FadingOut };
 	EFadeState FadeState = EFadeState::None;
