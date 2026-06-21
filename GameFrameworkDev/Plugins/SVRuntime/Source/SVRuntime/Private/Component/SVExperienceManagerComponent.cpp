@@ -7,6 +7,8 @@
 #include "Core/PrimaryGameUILayout.h"
 #include "GameplayTags/CommonGameplayTags.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogSVExperience, Log, All);
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SVExperienceManagerComponent)
 
 USVExperienceManagerComponent::USVExperienceManagerComponent(const FObjectInitializer& ObjectInitializer)
@@ -42,6 +44,7 @@ bool USVExperienceManagerComponent::ShouldShowLoadingScreen(FString& OutReason) 
 	// 如果关卡配置不使用 LoadingScreen，直接返回 false
 	if (!ShouldUseLoadingScreen())
 	{
+		UE_LOG(LogSVExperience, Log, TEXT("[SVExperienceManagerComponent] ShouldUseLoadingScreen() == false，不请求显示。"));
 		return false;
 	}
 
@@ -58,9 +61,11 @@ bool USVExperienceManagerComponent::ShouldShowLoadingScreen(FString& OutReason) 
 			}
 		}
 
+		UE_LOG(LogSVExperience, Log, TEXT("[SVExperienceManagerComponent] bShouldShowLoadingScreen == true，请求显示。原因: %s"), *OutReason);
 		return true;
 	}
 
+	UE_LOG(LogSVExperience, Log, TEXT("[SVExperienceManagerComponent] bShouldShowLoadingScreen == false（Flow 已推进），不请求显示。"));
 	return false;
 }
 

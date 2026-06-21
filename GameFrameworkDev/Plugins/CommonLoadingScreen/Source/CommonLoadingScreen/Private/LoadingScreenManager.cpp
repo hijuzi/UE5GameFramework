@@ -418,24 +418,29 @@ bool ULoadingScreenManager::CheckForAnyLoadingProcessInterfaceNeed()
 	const FWorldContext* Context = LocalGameInstance->GetWorldContext();
 	if (Context == nullptr)
 	{
+		UE_LOG(LogLoadingScreen, Warning, TEXT("CheckForAnyLoadingProcessInterfaceNeed: WorldContext 为空，无法检查。"));
 		return false;
 	}
 
 	UWorld* World = Context->World();
 	if (World == nullptr)
 	{
+		UE_LOG(LogLoadingScreen, Warning, TEXT("CheckForAnyLoadingProcessInterfaceNeed: World 为空，无法检查。"));
 		return false;
 	}
 
 	AGameStateBase* GameState = World->GetGameState<AGameStateBase>();
 	if (GameState == nullptr)
 	{
+		UE_LOG(LogLoadingScreen, Log, TEXT("CheckForAnyLoadingProcessInterfaceNeed: GameState 尚未同步（为空），跳过检查。"));
 		return false;
 	}
 
 	// 询问 GameState 是否需要加载界面	
 	if (ILoadingProcessInterface::ShouldShowLoadingScreen(GameState, /*out*/ DebugReasonForShowingOrHidingLoadingScreen))
 	{
+		UE_LOG(LogLoadingScreen, Log, TEXT("CheckForAnyLoadingProcessInterfaceNeed: GameState [%s] 请求显示加载界面。原因: %s"),
+			*GameState->GetName(), *DebugReasonForShowingOrHidingLoadingScreen);
 		return true;
 	}
 
@@ -444,6 +449,8 @@ bool ULoadingScreenManager::CheckForAnyLoadingProcessInterfaceNeed()
 	{
 		if (ILoadingProcessInterface::ShouldShowLoadingScreen(TestComponent, /*out*/ DebugReasonForShowingOrHidingLoadingScreen))
 		{
+			UE_LOG(LogLoadingScreen, Log, TEXT("CheckForAnyLoadingProcessInterfaceNeed: GameState 组件 [%s] 请求显示加载界面。原因: %s"),
+				*TestComponent->GetName(), *DebugReasonForShowingOrHidingLoadingScreen);
 			return true;
 		}
 	}
@@ -454,6 +461,9 @@ bool ULoadingScreenManager::CheckForAnyLoadingProcessInterfaceNeed()
 	{
 		if (ILoadingProcessInterface::ShouldShowLoadingScreen(Processor.GetObject(), /*out*/ DebugReasonForShowingOrHidingLoadingScreen))
 		{
+			UObject* ProcessorObj = Processor.GetObject();
+			UE_LOG(LogLoadingScreen, Log, TEXT("CheckForAnyLoadingProcessInterfaceNeed: 外部处理器 [%s] 请求显示加载界面。原因: %s"),
+				ProcessorObj ? *ProcessorObj->GetName() : TEXT("(已失效)"), *DebugReasonForShowingOrHidingLoadingScreen);
 			return true;
 		}
 	}
@@ -468,6 +478,8 @@ bool ULoadingScreenManager::CheckForAnyLoadingProcessInterfaceNeed()
 				// 询问 PC 自身是否需要加载界面
 				if (ILoadingProcessInterface::ShouldShowLoadingScreen(PC, /*out*/ DebugReasonForShowingOrHidingLoadingScreen))
 				{
+					UE_LOG(LogLoadingScreen, Log, TEXT("CheckForAnyLoadingProcessInterfaceNeed: PlayerController [%s] 请求显示加载界面。原因: %s"),
+						*PC->GetName(), *DebugReasonForShowingOrHidingLoadingScreen);
 					return true;
 				}
 
@@ -476,6 +488,8 @@ bool ULoadingScreenManager::CheckForAnyLoadingProcessInterfaceNeed()
 				{
 					if (ILoadingProcessInterface::ShouldShowLoadingScreen(TestComponent, /*out*/ DebugReasonForShowingOrHidingLoadingScreen))
 					{
+						UE_LOG(LogLoadingScreen, Log, TEXT("CheckForAnyLoadingProcessInterfaceNeed: PC 组件 [%s] 请求显示加载界面。原因: %s"),
+							*TestComponent->GetName(), *DebugReasonForShowingOrHidingLoadingScreen);
 						return true;
 					}
 				}
@@ -485,6 +499,13 @@ bool ULoadingScreenManager::CheckForAnyLoadingProcessInterfaceNeed()
 
 	// 没有 ILoadingProcessInterface 需要显示加载界面
 	DebugReasonForShowingOrHidingLoadingScreen = TEXT("（没有 ILoadingProcessInterface 需要显示加载界面）");
+	static bool bAlreadyLoggedNoLoadingProcess = false;
+	if (!bAlreadyLoggedNoLoadingProcess)
+	{
+		UE_LOG(LogLoadingScreen, Log, TEXT("CheckForAnyLoadingProcessInterfaceNeed: 没有任何组件请求显示加载界面，LoadingScreen 将不会显示。GameState=[%s], ExternalProcessors=%d, LocalPlayers=%d"),
+			GameState ? *GameState->GetName() : TEXT("null"), ExternalLoadingProcessors.Num(), LocalGameInstance->GetNumLocalPlayers());
+		bAlreadyLoggedNoLoadingProcess = true;
+	}
 	return false;
 }
 
