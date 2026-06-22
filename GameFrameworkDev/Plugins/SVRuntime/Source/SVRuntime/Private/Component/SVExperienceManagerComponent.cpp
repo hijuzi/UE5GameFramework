@@ -4,6 +4,7 @@
 #include "SVWorldSettings.h"
 #include "Assets/SVExperienceDefinition.h"
 #include "ControlFlowManager.h"
+#include "LoadingScreenManager.h"
 #include "Core/PrimaryGameUILayout.h"
 #include "GameplayTags/CommonGameplayTags.h"
 
@@ -92,8 +93,9 @@ void USVExperienceManagerComponent::OnExperienceLoaded()
 			}
 		}
 	}
-
+	bShouldShowLoadingScreen = true;
 	FControlFlow& Flow = FControlFlowStatics::Create(this, TEXT("ExperienceFlow"))
+		.QueueStep(TEXT("Wait For Any Screen Hidden"), this, &ThisClass::FlowStep_WaitForAnyScreenHidden)
 		.QueueStep(TEXT("Try Show Compiling Shaders Screen"), this, &ThisClass::FlowStep_TryShowCompilingShadersScreen)
 		.QueueStep(TEXT("Try Show Press Start Screen"), this, &ThisClass::FlowStep_TryShowPressStartScreen)
 		.QueueStep(TEXT("Try Show Main Screen"), this, &ThisClass::FlowStep_TryShowMainScreen);
@@ -101,6 +103,60 @@ void USVExperienceManagerComponent::OnExperienceLoaded()
 	Flow.ExecuteFlow();
 
 	FrontEndFlow = Flow.AsShared();
+}
+
+void USVExperienceManagerComponent::FlowStep_WaitForAnyScreenHidden(FControlFlowNodeRef SubFlow)
+{
+	if (UWorld* World = GetWorld())
+	{
+		if (ULoadingScreenManager* LSM = World->GetGameInstance()->GetSubsystem<ULoadingScreenManager>())
+		{
+			if (!LSM->GetAnyScreenDisplayStatus())
+			{
+				UE_LOG(LogSVExperience, Log, TEXT("[WaitForAnyScreenHidden] 当前无界面显示，直接进入下一步"));
+				SubFlow->ContinueFlow();
+				return;
+			}
+
+			UE_LOG(LogSVExperience, Log, TEXT("[WaitForAnyScreenHidden] 检测到界面正在显示，绑定 VisibilityChanged 委托等待隐藏..."));
+			TSharedPtr<FDelegateHandle> LoadingScreenHandle = MakeShared<FDelegateHandle>();
+			TSharedPtr<FDelegateHandle> BlackScreenHandle = MakeShared<FDelegateHandle>();
+			TSharedPtr<bool> bCompleted = MakeShared<bool>(false);
+
+			auto CheckAndContinue = [this, SubFlow, LSM, LoadingScreenHandle, BlackScreenHandle, bCompleted]()
+			{
+				if (*bCompleted)
+				{
+					return;
+				}
+
+				if (!LSM->GetAnyScreenDisplayStatus())
+				{
+					*bCompleted = true;
+					UE_LOG(LogSVExperience, Log, TEXT("[WaitForAnyScreenHidden] 界面已隐藏，解除委托并进入下一步"));
+					LSM->OnLoadingScreenVisibilityChangedDelegate().Remove(*LoadingScreenHandle);
+					LSM->OnBlackScreenVisibilityChangedDelegate().Remove(*BlackScreenHandle);
+					SubFlow->ContinueFlow();
+				}
+			};
+
+			*LoadingScreenHandle = LSM->OnLoadingScreenVisibilityChangedDelegate().AddWeakLambda(this, [CheckAndContinue](bool bIsVisible)
+			{
+				CheckAndContinue();
+			});
+
+			*BlackScreenHandle = LSM->OnBlackScreenVisibilityChangedDelegate().AddWeakLambda(this, [CheckAndContinue](bool bIsVisible)
+			{
+				CheckAndContinue();
+			});
+
+			return;
+		}
+	}
+
+	// 无法获取 LSM，直接继续
+	UE_LOG(LogSVExperience, Warning, TEXT("[WaitForAnyScreenHidden] 无法获取 LoadingScreenManager，直接进入下一步"));
+	SubFlow->ContinueFlow();
 }
 
 void USVExperienceManagerComponent::TryPushWidgetToLayer(FControlFlowNodeRef SubFlow, const TSoftClassPtr<UCommonActivatableWidget>& ScreenClass, bool bWaitForDeactivation)

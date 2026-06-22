@@ -20,7 +20,7 @@ enum class EBlackScreenFadeEasing : uint8
 };
 
 /** 黑屏动画完成时广播 */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackScreenFadeCompleted);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackScreenAnimationCompleted);
 
 /**
  * 黑屏控件的基类。
@@ -30,8 +30,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackScreenFadeCompleted);
  *     └── 子控件区域（蓝图派生时可在此添加 Logo、加载提示等）
  *
  * 自动管理 RenderOpacity 的缓动动画：
- *   - PlayFadeIn() ：0 → 1，完成后触发 OnFadeInCompleted
- *   - PlayFadeOut()：1 → 0，完成后触发 OnFadeOutCompleted
+ *   - PlayLoadAnimation()   ：淡入显示黑屏，完成后触发 OnLoadAnimationCompleted
+ *   - PlayUnloadAnimation() ：淡出隐藏黑屏，完成后触发 OnUnloadAnimationCompleted
  */
 UCLASS(Abstract, BlueprintType, Blueprintable)
 class COMMONLOADINGSCREEN_API UBlackScreenUserWidget : public UUserWidget
@@ -44,28 +44,30 @@ public:
 	/** 获取根 SBorder，供 C++ 或蓝图向其中添加子控件 */
 	TSharedPtr<SBorder> GetRootBorder() const { return RootBorder; }
 
-	//~ 播放动画
-	UFUNCTION(BlueprintCallable, Category = "Black Screen")
-	void PlayFadeIn();
+	//~ 动画
+	/** 播放加载动画（淡入显示黑屏），蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen|Animation")
+	void PlayLoadAnimation();
 
-	UFUNCTION(BlueprintCallable, Category = "Black Screen")
-	void PlayFadeOut();
+	/** 播放卸载动画（淡出隐藏黑屏），蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen|Animation")
+	void PlayUnloadAnimation();
 
 	/** 是否正在缓动（淡入或淡出）中 */
-	UFUNCTION(BlueprintPure, Category = "Black Screen")
+	UFUNCTION(BlueprintPure, Category = "Black Screen|Animation")
 	bool IsFading() const;
 
 	/** 判断是否需要显示加载界面，蓝图可重载 */
 	UFUNCTION(BlueprintNativeEvent, BlueprintPure, Category = "Black Screen")
 	bool ShouldShowLoadingScreen() const;
 
-	/** 淡入动画完成时广播 */
-	UPROPERTY(BlueprintAssignable, Category = "Black Screen")
-	FOnBlackScreenFadeCompleted OnFadeInCompleted;
+	/** 加载动画完成时广播 */
+	UPROPERTY(BlueprintAssignable, Category = "Black Screen|Animation")
+	FOnBlackScreenAnimationCompleted OnLoadAnimationCompleted;
 
-	/** 淡出动画完成时广播 */
-	UPROPERTY(BlueprintAssignable, Category = "Black Screen")
-	FOnBlackScreenFadeCompleted OnFadeOutCompleted;
+	/** 卸载动画完成时广播 */
+	UPROPERTY(BlueprintAssignable, Category = "Black Screen|Animation")
+	FOnBlackScreenAnimationCompleted OnUnloadAnimationCompleted;
 
 protected:
 	//~ UUserWidget interface
@@ -74,13 +76,13 @@ protected:
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-	/** 黑屏淡入动画完成时调用，蓝图可重写 */
-	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen")
-	void OnFadeInFinished();
+	/** 加载动画完成时调用，蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen|Animation")
+	void OnLoadAnimationFinished();
 
-	/** 黑屏淡出动画完成时调用，蓝图可重写 */
-	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen")
-	void OnFadeOutFinished();
+	/** 卸载动画完成时调用，蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen|Animation")
+	void OnUnloadAnimationFinished();
 
 private:
 	/** 根 SBorder，黑色背景全屏覆盖 */
@@ -94,6 +96,9 @@ private:
 	enum class EFadeState : uint8 { None, FadingIn, FadingOut };
 	EFadeState FadeState = EFadeState::None;
 	float FadeElapsed = 0.0f;
+
+	/** Tick 中驱动自身渐入渐出动画 */
+	void TickSelfFade(float InDeltaTime);
 
 	static float ApplyEasing(float Alpha, EBlackScreenFadeEasing Easing);
 };

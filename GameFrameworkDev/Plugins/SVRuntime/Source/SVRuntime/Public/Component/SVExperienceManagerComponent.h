@@ -46,6 +46,9 @@ protected:
 	 * @param bWaitForDeactivation 是否等待 Widget 反激活后再继续流程（MainScreen 为 false，其余为 true） */
 	void TryPushWidgetToLayer(FControlFlowNodeRef SubFlow, const TSoftClassPtr<UCommonActivatableWidget>& ScreenClass, bool bWaitForDeactivation);
 
+	/** Flow Step: 等待黑屏/加载界面隐藏后再继续 */
+	void FlowStep_WaitForAnyScreenHidden(FControlFlowNodeRef SubFlow);
+
 	/** Flow Step: 尝试显示着色器编译界面 */
 	void FlowStep_TryShowCompilingShadersScreen(FControlFlowNodeRef SubFlow) { TryPushWidgetToLayer(SubFlow, CompilingShadersScreenClass, true); }
 	/** Flow Step: 尝试显示 Press Start 界面 */

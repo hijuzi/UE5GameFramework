@@ -146,11 +146,14 @@ void ULoadingProgressUserWidget::NativeTick(const FGeometry& MyGeometry, float I
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
-	if (!IsFading())
+	if (IsFading())
 	{
-		return;
+		TickMaskFade(InDeltaTime);
 	}
+}
 
+void ULoadingProgressUserWidget::TickMaskFade(float InDeltaTime)
+{
 	const float Duration = (MaskFadeState == EMaskFadeState::FadingIn) ? MaskFadeInDuration : MaskFadeOutDuration;
 	MaskFadeElapsed += InDeltaTime;
 
@@ -170,18 +173,18 @@ void ULoadingProgressUserWidget::NativeTick(const FGeometry& MyGeometry, float I
 		const EMaskFadeState CompletedState = MaskFadeState;
 		MaskFadeState = EMaskFadeState::None;
 
-	if (CompletedState == EMaskFadeState::FadingIn)
-	{
-		OnMaskFadeInFinished();
-	}
-	else
-	{
-		OnMaskFadeOutFinished();
-	}
+		if (CompletedState == EMaskFadeState::FadingIn)
+		{
+			OnUnloadAnimationFinished();
+		}
+		else
+		{
+			OnLoadAnimationFinished();
+		}
 	}
 }
 
-void ULoadingProgressUserWidget::PlayMaskFadeIn()
+void ULoadingProgressUserWidget::PlayUnloadAnimation_Implementation()
 {
 	if (MaskFadeState == EMaskFadeState::FadingIn)
 	{
@@ -196,7 +199,7 @@ void ULoadingProgressUserWidget::PlayMaskFadeIn()
 	}
 }
 
-void ULoadingProgressUserWidget::PlayMaskFadeOut()
+void ULoadingProgressUserWidget::PlayLoadAnimation_Implementation()
 {
 	if (MaskFadeState == EMaskFadeState::FadingOut)
 	{
@@ -231,20 +234,20 @@ float ULoadingProgressUserWidget::ApplyEasing(float Alpha, EMaskFadeEasing Easin
 	}
 }
 
-void ULoadingProgressUserWidget::OnMaskFadeInFinished_Implementation()
+void ULoadingProgressUserWidget::OnUnloadAnimationFinished_Implementation()
 {
 	if (MaskCanvas.IsValid())
 	{
 		MaskCanvas->SetRenderOpacity(1.0f);
 	}
-	OnMaskFadeInCompleted.Broadcast();
+	OnUnloadAnimationCompleted.Broadcast();
 }
 
-void ULoadingProgressUserWidget::OnMaskFadeOutFinished_Implementation()
+void ULoadingProgressUserWidget::OnLoadAnimationFinished_Implementation()
 {
 	if (MaskCanvas.IsValid())
 	{
 		MaskCanvas->SetRenderOpacity(0.0f);
 	}
-	OnMaskFadeOutCompleted.Broadcast();
+	OnLoadAnimationCompleted.Broadcast();
 }

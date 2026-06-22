@@ -31,6 +31,9 @@ Windows/
 # Uncomment if you want to ignore cooked content
 # *_BuiltData.uasset
 
+# Ignored content folders
+GameFrameworkDev/Content/Orasot_Bundle/
+
 # --------------------------------------------
 # Platform Specific
 # --------------------------------------------

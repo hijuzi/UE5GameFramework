@@ -26,7 +26,7 @@ TSharedRef<SWidget> UBlackScreenUserWidget::RebuildWidget()
 		.BorderBackgroundColor(FLinearColor::Black)
 		.Padding(0);
 
-	// 初始状态：完全透明，等待 PlayFadeIn 调用
+	// 初始状态：完全透明，等待 PlayLoadAnimation 调用
 	SetRenderOpacity(0.0f);
 
 	// 允许 Blueprint 派生的 WidgetTree 作为 SBorder 的子内容嵌入
@@ -55,7 +55,7 @@ bool UBlackScreenUserWidget::ShouldShowLoadingScreen_Implementation() const
 	return true;
 }
 
-void UBlackScreenUserWidget::PlayFadeIn()
+void UBlackScreenUserWidget::PlayLoadAnimation_Implementation()
 {
 	if (FadeState == EFadeState::FadingIn)
 	{
@@ -68,7 +68,7 @@ void UBlackScreenUserWidget::PlayFadeIn()
 	SetVisibility(ESlateVisibility::Visible);
 }
 
-void UBlackScreenUserWidget::PlayFadeOut()
+void UBlackScreenUserWidget::PlayUnloadAnimation_Implementation()
 {
 	if (FadeState == EFadeState::FadingOut)
 	{
@@ -85,11 +85,14 @@ void UBlackScreenUserWidget::NativeTick(const FGeometry& MyGeometry, float InDel
 {
 	Super::NativeTick(MyGeometry, InDeltaTime);
 
-	if (!IsFading())
+	if (IsFading())
 	{
-		return;
+		TickSelfFade(InDeltaTime);
 	}
+}
 
+void UBlackScreenUserWidget::TickSelfFade(float InDeltaTime)
+{
 	const float Duration = (FadeState == EFadeState::FadingIn) ? FadeInDuration : FadeOutDuration;
 	FadeElapsed += InDeltaTime;
 
@@ -106,14 +109,14 @@ void UBlackScreenUserWidget::NativeTick(const FGeometry& MyGeometry, float InDel
 		const EFadeState CompletedState = FadeState;
 		FadeState = EFadeState::None;
 
-	if (CompletedState == EFadeState::FadingIn)
-	{
-		OnFadeInFinished();
-	}
-	else
-	{
-		OnFadeOutFinished();
-	}
+		if (CompletedState == EFadeState::FadingIn)
+		{
+			OnLoadAnimationFinished();
+		}
+		else
+		{
+			OnUnloadAnimationFinished();
+		}
 	}
 }
 
@@ -132,14 +135,14 @@ float UBlackScreenUserWidget::ApplyEasing(float Alpha, EBlackScreenFadeEasing Ea
 	}
 }
 
-void UBlackScreenUserWidget::OnFadeInFinished_Implementation()
+void UBlackScreenUserWidget::OnLoadAnimationFinished_Implementation()
 {
 	SetRenderOpacity(1.0f);
-	OnFadeInCompleted.Broadcast();
+	OnLoadAnimationCompleted.Broadcast();
 }
 
-void UBlackScreenUserWidget::OnFadeOutFinished_Implementation()
+void UBlackScreenUserWidget::OnUnloadAnimationFinished_Implementation()
 {
 	SetRenderOpacity(0.0f);
-	OnFadeOutCompleted.Broadcast();
+	OnUnloadAnimationCompleted.Broadcast();
 }

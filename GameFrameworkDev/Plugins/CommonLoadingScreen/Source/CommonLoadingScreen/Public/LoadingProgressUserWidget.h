@@ -25,11 +25,8 @@ enum class EMaskFadeEasing : uint8
 	EaseOut		UMETA(DisplayName = "缓出"),
 };
 
-/** 遮罩淡入动画完成时广播 */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMaskFadeInCompleted);
-
-/** 遮罩淡出动画完成时广播 */
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMaskFadeOutCompleted);
+/** 加载界面动画完成时广播 */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLoadingScreenAnimationCompleted);
 
 /**
  * 加载进度界面控件。
@@ -44,8 +41,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMaskFadeOutCompleted);
  *           └── SBorder（全局展开，黑屏）
  *
  * 遮罩层自动管理 RenderOpacity 的缓动动画：
- *   - PlayMaskFadeIn() ：0 → 1，完成后触发 OnMaskFadeInCompleted
- *   - PlayMaskFadeOut()：1 → 0，完成后触发 OnMaskFadeOutCompleted
+ *   - PlayLoadAnimation()   ：遮罩淡出，显示加载内容，完成后触发 OnLoadAnimationCompleted
+ *   - PlayUnloadAnimation() ：遮罩淡入，遮盖加载内容，完成后触发 OnUnloadAnimationCompleted
  */
 UCLASS(Abstract, BlueprintType, Blueprintable)
 class COMMONLOADINGSCREEN_API ULoadingProgressUserWidget : public UUserWidget
@@ -75,24 +72,26 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Loading Progress")
 	void SetBackgroundBrush(const FSlateBrush& InBrush);
 
-	//~ 遮罩动画
-	UFUNCTION(BlueprintCallable, Category = "Loading Progress|Mask")
-	void PlayMaskFadeIn();
+	//~ 动画
+	/** 播放加载动画（遮罩淡出，显示加载内容），蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Loading Progress|Animation")
+	void PlayLoadAnimation();
 
-	UFUNCTION(BlueprintCallable, Category = "Loading Progress|Mask")
-	void PlayMaskFadeOut();
+	/** 播放卸载动画（遮罩淡入，遮盖加载内容），蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Loading Progress|Animation")
+	void PlayUnloadAnimation();
 
 	/** 是否正在缓动（淡入或淡出）中 */
-	UFUNCTION(BlueprintPure, Category = "Loading Progress|Mask")
+	UFUNCTION(BlueprintPure, Category = "Loading Progress|Animation")
 	bool IsFading() const;
 
-	/** 遮罩淡入动画完成时广播 */
-	UPROPERTY(BlueprintAssignable, Category = "Loading Progress|Mask")
-	FOnMaskFadeInCompleted OnMaskFadeInCompleted;
+	/** 加载动画完成时广播 */
+	UPROPERTY(BlueprintAssignable, Category = "Loading Progress|Animation")
+	FOnLoadingScreenAnimationCompleted OnLoadAnimationCompleted;
 
-	/** 遮罩淡出动画完成时广播 */
-	UPROPERTY(BlueprintAssignable, Category = "Loading Progress|Mask")
-	FOnMaskFadeOutCompleted OnMaskFadeOutCompleted;
+	/** 卸载动画完成时广播 */
+	UPROPERTY(BlueprintAssignable, Category = "Loading Progress|Animation")
+	FOnLoadingScreenAnimationCompleted OnUnloadAnimationCompleted;
 
 protected:
 	//~ UUserWidget interface
@@ -101,13 +100,13 @@ protected:
 	virtual void NativeConstruct() override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
-	/** 遮罩淡入动画完成时调用，蓝图可重写 */
-	UFUNCTION(BlueprintNativeEvent, Category = "Loading Progress|Mask")
-	void OnMaskFadeInFinished();
+	/** 卸载动画完成时调用，蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Loading Progress|Animation")
+	void OnUnloadAnimationFinished();
 
-	/** 遮罩淡出动画完成时调用，蓝图可重写 */
-	UFUNCTION(BlueprintNativeEvent, Category = "Loading Progress|Mask")
-	void OnMaskFadeOutFinished();
+	/** 加载动画完成时调用，蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Loading Progress|Animation")
+	void OnLoadAnimationFinished();
 
 private:
 	/** 根 SOverlay */
@@ -146,6 +145,9 @@ private:
 	enum class EMaskFadeState : uint8 { None, FadingIn, FadingOut };
 	EMaskFadeState MaskFadeState = EMaskFadeState::None;
 	float MaskFadeElapsed = 0.0f;
+
+	/** Tick 中驱动遮罩渐入渐出动画 */
+	void TickMaskFade(float InDeltaTime);
 
 	static float ApplyEasing(float Alpha, EMaskFadeEasing Easing);
 };

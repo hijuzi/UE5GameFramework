@@ -63,9 +63,10 @@ public:
 	}
 
 	/** 返回加载界面当前是否正在显示 */
+	UFUNCTION(BlueprintPure, Category = "Loading Screen")
 	bool GetLoadingScreenDisplayStatus() const
 	{
-		return LoadingScreenState == ELoadScreenState::Loaded;
+		return LoadingScreenState != ELoadScreenState::None;
 	}
 
 	/** 当加载界面可见性发生变化时调用 */
@@ -76,9 +77,17 @@ public:
 	UE_API void UnregisterLoadingProcessor(TScriptInterface<ILoadingProcessInterface> Interface);
 	
 	/** 返回黑屏界面当前是否正在显示 */
+	UFUNCTION(BlueprintPure, Category = "Loading Screen|Black Screen")
 	bool GetBlackScreenDisplayStatus() const
 	{
-		return LoadBlackScreenState == ELoadScreenState::Loaded;
+		return LoadBlackScreenState != ELoadScreenState::None;
+	}
+
+	/** 返回任意界面（黑屏或加载界面）当前是否正在显示 */
+	UFUNCTION(BlueprintPure, Category = "Loading Screen")
+	bool GetAnyScreenDisplayStatus() const
+	{
+		return GetBlackScreenDisplayStatus() || GetLoadingScreenDisplayStatus();
 	}
 
 	/** 当黑屏界面可见性发生变化时调用 */
@@ -147,21 +156,21 @@ private:
 	/** 加载界面遮罩淡出完成后的最终清理（移除控件、恢复性能设置、广播可见性） */
 	UE_API void FinishLoadingScreenCleanup();
 
-	/** 黑屏淡入动画完成的回调 */
+	/** 黑屏加载动画完成的回调 */
 	UFUNCTION()
-	void HandleBlackScreenFadeInCompleted();
+	void HandleBlackScreenLoadAnimationCompleted();
 
-	/** 黑屏淡出动画完成的回调 */
+	/** 黑屏卸载动画完成的回调 */
 	UFUNCTION()
-	void HandleBlackScreenFadeOutCompleted();
+	void HandleBlackScreenUnloadAnimationCompleted();
 
-	/** 加载界面遮罩淡入动画完成的回调 */
+	/** 加载界面加载动画完成的回调 */
 	UFUNCTION()
-	void HandleMaskFadeInCompleted();
+	void HandleLoadingScreenLoadAnimationCompleted();
 
-	/** 加载界面遮罩淡出动画完成的回调 */
+	/** 加载界面卸载动画完成的回调 */
 	UFUNCTION()
-	void HandleMaskFadeOutCompleted();
+	void HandleLoadingScreenUnloadAnimationCompleted();
 
 	/** 加载界面可见时阻止游戏内输入 */
 	UE_API void StartBlockingInputForLoadingScreen();
@@ -234,9 +243,6 @@ private:
 
 	/** 是否处于 PreLoadMap 与 PostLoadMap 之间 */
 	bool bCurrentlyInLoadMap = false;
-
-
-
 
 	/** 当前黑屏加载状态 */
 	ELoadScreenState LoadBlackScreenState = ELoadScreenState::None;

@@ -42,8 +42,11 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(ForceUnits=s))
 	float MaskFadeOutDuration = 0.2f;
 
-
-
+	// 加载界面的最小显示时长（秒）。
+	// 即使关卡加载已完成，也会至少显示这么长时间；
+	// 若关卡加载未完成，则继续等待加载完成。
+	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(ForceUnits=s, ClampMin="2.0", ClampMax="10.0"))
+	float MinimumLoadingScreenDisplayTime = 2.0f;
 
 	// 其他加载完成后额外保持加载界面的时长（秒），
 	// 以便给纹理流式加载留出时间，避免画面模糊
@@ -113,10 +116,10 @@ public:
 	//~=========================================================================
 
 	// 强制显示加载界面（用于调试）
-	UPROPERTY(Transient, EditAnywhere, Category=Debug, meta=(ConsoleVariable="CommonLoadingScreen.AlwaysShow"))
-	bool ForceLoadingScreenVisible = false;
+	UPROPERTY(config, EditAnywhere, Category=Debug)
+	bool bForceLoadingScreenVisible = false;
 
 	// 为 true 时，每帧都会将加载界面与黑屏的显示/隐藏原因输出到日志。
-	UPROPERTY(Transient, EditAnywhere, Category=Debug, meta=(ConsoleVariable="CommonLoadingScreen.LogLoadingScreenReasonEveryFrame"))
-	bool LogLoadingScreenReasonEveryFrame = 0;
+	UPROPERTY(config, EditAnywhere, Category=Debug)
+	bool bLogLoadingScreenReasonEveryFrame = false;
 };

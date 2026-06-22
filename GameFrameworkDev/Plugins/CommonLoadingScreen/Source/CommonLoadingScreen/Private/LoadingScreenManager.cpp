@@ -5,6 +5,7 @@
 #include "HAL/ThreadHeartBeat.h"
 
 #include "BlackScreenUserWidget.h"
+#include "CommonLoadingScreenSettings.h"
 
 #include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
@@ -79,19 +80,6 @@ namespace LoadingScreenCVars
 		TEXT("其他加载完成后额外保持加载界面的时长（秒），以便给纹理流式加载留出时间，避免画面模糊"),
 		ECVF_Default | ECVF_Preview);
 
-	static bool LogLoadingScreenReasonEveryFrame = false;
-	static FAutoConsoleVariableRef CVarLogLoadingScreenReasonEveryFrame(
-		TEXT("CommonLoadingScreen.LogLoadingScreenReasonEveryFrame"),
-		LogLoadingScreenReasonEveryFrame,
-		TEXT("为 true 时，每帧都会将加载界面显示或隐藏的原因输出到日志。"),
-		ECVF_Default);
-
-	static bool ForceLoadingScreenVisible = false;
-	static FAutoConsoleVariableRef CVarForceLoadingScreenVisible(
-		TEXT("CommonLoadingScreen.AlwaysShow"),
-		ForceLoadingScreenVisible,
-		TEXT("强制显示加载界面。"),
-		ECVF_Default);
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -207,7 +195,7 @@ void ULoadingScreenManager::Tick(float DeltaTime)
 
 	TimeUntilNextLogHeartbeatSeconds = FMath::Max(TimeUntilNextLogHeartbeatSeconds - DeltaTime, 0.0);
 
-	if (LoadingScreenCVars::LogLoadingScreenReasonEveryFrame)
+	if (GetDefault<UCommonLoadingScreenSettings>()->bLogLoadingScreenReasonEveryFrame)
 	{
 		UE_LOG(LogLoadingScreen, Log, TEXT("加载界面状态: %s. 原因: %s"), *UEnum::GetValueAsString(LoadingScreenState), *DebugReasonForShowingOrHidingLoadingScreen);
 		UE_LOG(LogLoadingScreen, Log, TEXT("黑屏状态: %s. 原因: %s"), *UEnum::GetValueAsString(LoadBlackScreenState), *DebugReasonForBlackScreen);
@@ -252,10 +240,14 @@ void ULoadingScreenManager::UnregisterLoadingProcessor(TScriptInterface<ILoading
 
 void ULoadingScreenManager::HandlePreLoadMap(const FWorldContext& WorldContext, const FString& MapName)
 {
+	UE_LOG(LogLoadingScreen, Log, TEXT("HandlePreLoadMap: MapName=[%s], OwningGameInstance=[%s]"), *MapName, *GetNameSafe(WorldContext.OwningGameInstance));
+
 	if (WorldContext.OwningGameInstance == GetGameInstance())
 	{
 		bCurrentlyInLoadMap = true;
 		PreLoadMapName = MapName;
+
+		UE_LOG(LogLoadingScreen, Log, TEXT("HandlePreLoadMap: 设置 bCurrentlyInLoadMap=true, PreLoadMapName=[%s]"), *MapName);
 
 		// 如果引擎已初始化，立即进入黑屏与加载界面
 		if (GEngine->IsInitialized())
@@ -270,11 +262,13 @@ void ULoadingScreenManager::HandlePreLoadMap(const FWorldContext& WorldContext, 
 
 void ULoadingScreenManager::HandlePostLoadMap(UWorld* World)
 {
+	UE_LOG(LogLoadingScreen, Log, TEXT("HandlePostLoadMap: World=[%s]"), *GetNameSafe(World));
+
 	if ((World != nullptr) && (World->GetGameInstance() == GetGameInstance()))
 	{
+		UE_LOG(LogLoadingScreen, Log, TEXT("HandlePostLoadMap: 设置 bCurrentlyInLoadMap=false, 清理 PreLoadMapName=[%s]"), *PreLoadMapName);
+
 		bCurrentlyInLoadMap = false;
-		LoadBlackScreenState = ELoadScreenState::None;
-		LoadingScreenState = ELoadScreenState::None;
 		PreLoadMapName.Empty();
 	}
 }
@@ -325,9 +319,9 @@ bool ULoadingScreenManager::CheckForSystemNeedBlackScreen()
 
 	const UGameInstance* LocalGameInstance = GetGameInstance();
 
-	if (LoadingScreenCVars::ForceLoadingScreenVisible)
+	if (GetDefault<UCommonLoadingScreenSettings>()->bForceLoadingScreenVisible)
 	{
-		DebugReasonForBlackScreen = FString(TEXT("CommonLoadingScreen.AlwaysShow 为 true"));
+		DebugReasonForBlackScreen = FString(TEXT("CommonLoadingScreen.ForceLoadingScreenVisible 为 true"));
 		return true;
 	}
 
@@ -665,11 +659,11 @@ void ULoadingScreenManager::ShowLoadingScreen()
 			LoadingScreenUserWidgetPtr = LoadingScreenWidgetInstance;
 			LoadingScreenWidget = UserWidget->TakeWidget();
 
-			// 绑定遮罩动画完成回调
-			LoadingScreenWidgetInstance->OnMaskFadeInCompleted.AddDynamic(this, &ULoadingScreenManager::HandleMaskFadeInCompleted);
-			LoadingScreenWidgetInstance->OnMaskFadeOutCompleted.AddDynamic(this, &ULoadingScreenManager::HandleMaskFadeOutCompleted);
+			// 绑定动画完成回调
+			LoadingScreenWidgetInstance->OnUnloadAnimationCompleted.AddDynamic(this, &ULoadingScreenManager::HandleLoadingScreenUnloadAnimationCompleted);
+			LoadingScreenWidgetInstance->OnLoadAnimationCompleted.AddDynamic(this, &ULoadingScreenManager::HandleLoadingScreenLoadAnimationCompleted);
 			
-			LoadingScreenWidgetInstance->PlayMaskFadeOut();
+			LoadingScreenWidgetInstance->PlayLoadAnimation();
 			
 			// 加载界面显示时拦截输入
 			StartBlockingInputForLoadingScreen();
@@ -721,7 +715,7 @@ void ULoadingScreenManager::HideLoadingScreen()
 		if (LoadingScreenUserWidgetPtr)
 		{
 			LoadingScreenState = ELoadScreenState::None;
-			LoadingScreenUserWidgetPtr->PlayMaskFadeIn();
+			LoadingScreenUserWidgetPtr->PlayUnloadAnimation();
 		}
 		else
 		{
@@ -793,11 +787,11 @@ void ULoadingScreenManager::ShowBlackScreen()
 			BlackScreenWidget = BlackScreenWidgetInstance->TakeWidget();
 			BlackScreenUserWidgetPtr = BlackScreenWidgetInstance;
 
-			// 绑定动画完成回调并播放淡入
-			BlackScreenWidgetInstance->OnFadeInCompleted.AddDynamic(this, &ULoadingScreenManager::HandleBlackScreenFadeInCompleted);
-			BlackScreenWidgetInstance->OnFadeOutCompleted.AddDynamic(this, &ULoadingScreenManager::HandleBlackScreenFadeOutCompleted);
+			// 绑定动画完成回调并播放加载动画（淡入）
+			BlackScreenWidgetInstance->OnLoadAnimationCompleted.AddDynamic(this, &ULoadingScreenManager::HandleBlackScreenLoadAnimationCompleted);
+			BlackScreenWidgetInstance->OnUnloadAnimationCompleted.AddDynamic(this, &ULoadingScreenManager::HandleBlackScreenUnloadAnimationCompleted);
 
-			BlackScreenWidgetInstance->PlayFadeIn();
+			BlackScreenWidgetInstance->PlayLoadAnimation();
 
 			// 淡入开始后拦截输入并广播可见性
 			StartBlockingInputForBlackScreen();
@@ -844,11 +838,11 @@ void ULoadingScreenManager::HideBlackScreen()
 	UE_LOG(LogLoadingScreen, Log, TEXT("在 'IsShowingInitialLoadingScreen()' 为 false 时隐藏黑屏。"));
 	UE_LOG(LogLoadingScreen, Log, TEXT("%s"), *DebugReasonForBlackScreen);
 
-	// 如果有 UBlackScreenUserWidget，播放淡出动画后再清理
+	// 如果有 UBlackScreenUserWidget，播放卸载动画（淡出）后再清理
 	if (BlackScreenUserWidgetPtr)
 	{
 		LoadBlackScreenState = ELoadScreenState::None;
-		BlackScreenUserWidgetPtr->PlayFadeOut();
+		BlackScreenUserWidgetPtr->PlayUnloadAnimation();
 	}
 	else
 	{
@@ -892,9 +886,9 @@ void ULoadingScreenManager::FinishLoadingScreenCleanup()
 	LoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ false);
 }
 
-void ULoadingScreenManager::HandleBlackScreenFadeInCompleted()
+void ULoadingScreenManager::HandleBlackScreenLoadAnimationCompleted()
 {
-	UE_LOG(LogLoadingScreen, Log, TEXT("黑屏淡入动画完成。"));
+	UE_LOG(LogLoadingScreen, Log, TEXT("黑屏加载动画完成。"));
 	LoadBlackScreenState = ELoadScreenState::Loaded;
 	BlackScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ true);
 
@@ -910,23 +904,23 @@ void ULoadingScreenManager::HandleBlackScreenFadeInCompleted()
 	}
 }
 
-void ULoadingScreenManager::HandleBlackScreenFadeOutCompleted()
+void ULoadingScreenManager::HandleBlackScreenUnloadAnimationCompleted()
 {
-	UE_LOG(LogLoadingScreen, Log, TEXT("黑屏淡出动画完成。"));
+	UE_LOG(LogLoadingScreen, Log, TEXT("黑屏卸载动画完成。"));
 	FinishBlackScreenCleanup();
 }
 
-void ULoadingScreenManager::HandleMaskFadeInCompleted()
+void ULoadingScreenManager::HandleLoadingScreenUnloadAnimationCompleted()
 {
-	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面遮罩淡入动画完成--加载界面清理。"));
+	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面卸载动画完成--加载界面清理。"));
 	FinishLoadingScreenCleanup();
 	// 隐藏黑屏，进入游戏内
 	PrepareHideBlackScreen();
 }
 
-void ULoadingScreenManager::HandleMaskFadeOutCompleted()
+void ULoadingScreenManager::HandleLoadingScreenLoadAnimationCompleted()
 {
-	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面遮罩淡出动画完成---加载界面完成。"));
+	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面加载动画完成---加载界面完成。"));
 	LoadingScreenState = ELoadScreenState::Loaded;
 	LoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ true);
 }
