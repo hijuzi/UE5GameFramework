@@ -162,7 +162,8 @@ bool ULoadingScreenManager::ShouldCreateSubsystem(UObject* Outer) const
 
 bool ULoadingScreenManager::IsAnyScreenFading() const
 {
-	return BlackScreenUserWidgetPtr && BlackScreenUserWidgetPtr->IsFading();
+	return (BlackScreenUserWidgetPtr && BlackScreenUserWidgetPtr->IsFading())
+		|| (LoadingScreenUserWidgetPtr && LoadingScreenUserWidgetPtr->IsFading());
 }
 
 void ULoadingScreenManager::LoadBlackScreen()
@@ -295,6 +296,26 @@ void ULoadingScreenManager::LoadLoadingScreen()
 		// 延迟到Tick中检查，设置等待
 		LoadingScreenState = ELoadScreenState::PendingLoad;
 	}
+}
+
+void ULoadingScreenManager::PrepareHideBlackScreen()
+{
+	if (LoadBlackScreenState == ELoadScreenState::None)
+	{
+		return;
+	}
+
+	LoadBlackScreenState = ELoadScreenState::PendingHide;
+}
+
+void ULoadingScreenManager::PrepareHideLoadingScreen()
+{
+	if (LoadingScreenState == ELoadScreenState::None)
+	{
+		return;
+	}
+
+	LoadingScreenState = ELoadScreenState::PendingHide;
 }
 
 bool ULoadingScreenManager::CheckForSystemNeedBlackScreen()
@@ -627,11 +648,6 @@ void ULoadingScreenManager::ShowLoadingScreen()
 
 		UGameInstance* LocalGameInstance = GetGameInstance();
 
-		// 加载界面显示时拦截输入
-		StartBlockingInputForLoadingScreen();
-
-		LoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ true);
-
 		// 创建加载界面控件 — 优先使用配置的 UMG 子类，留空时回退到 ULoadingProgressUserWidget 基类
 		TSubclassOf<UUserWidget> LoadingScreenWidgetClass = Settings->LoadingScreenWidget.TryLoadClass<UUserWidget>();
 		if (!LoadingScreenWidgetClass)
@@ -641,13 +657,23 @@ void ULoadingScreenManager::ShowLoadingScreen()
 		}
 
 		UUserWidget* UserWidget = UUserWidget::CreateWidgetInstance(*LocalGameInstance, LoadingScreenWidgetClass, NAME_None);
-		if (UserWidget)
+		if (ULoadingProgressUserWidget* LoadingScreenWidgetInstance = Cast<ULoadingProgressUserWidget>(UserWidget))
 		{
 			UE_LOG(LogLoadingScreen, Log, TEXT("LoadingScreenUserWidget 创建成功。"));
-
+			
 			LoadingScreenState = ELoadScreenState::Loaded;
+			LoadingScreenUserWidgetPtr = LoadingScreenWidgetInstance;
 			LoadingScreenWidget = UserWidget->TakeWidget();
 
+			// 绑定遮罩动画完成回调
+			LoadingScreenWidgetInstance->OnMaskFadeInCompleted.AddDynamic(this, &ULoadingScreenManager::HandleMaskFadeInCompleted);
+			LoadingScreenWidgetInstance->OnMaskFadeOutCompleted.AddDynamic(this, &ULoadingScreenManager::HandleMaskFadeOutCompleted);
+			
+			LoadingScreenWidgetInstance->PlayMaskFadeOut();
+			
+			// 加载界面显示时拦截输入
+			StartBlockingInputForLoadingScreen();
+			
 			// 以高 ZOrder 添加到视口，确保位于大多数元素之上
 			UGameViewportClient* GameViewportClient = LocalGameInstance->GetGameViewportClient();
 			GameViewportClient->AddViewportWidgetContent(LoadingScreenWidget.ToSharedRef(), Settings->LoadingScreenZOrder);
@@ -676,6 +702,8 @@ void ULoadingScreenManager::HideLoadingScreen()
 	}
 
 	StopBlockingInputForLoadingScreen();
+	
+	CSV_EVENT(LoadingScreen, TEXT("Hide"));
 
 	if (IsShowingInitialLoadingScreen())
 	{
@@ -690,20 +718,16 @@ void ULoadingScreenManager::HideLoadingScreen()
 		UE_LOG(LogLoadingScreen, Log, TEXT("在移除加载界面前执行垃圾回收"));
 		GEngine->ForceGarbageCollection(true);
 
-		RemoveLoadingScreenWidgetFromViewport();
-	
-		ChangePerformanceSettings(/*bEnableLoadingScreen=*/ false);
-
-		// 通知观察者加载界面已结束
-		LoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ false);
+		if (LoadingScreenUserWidgetPtr)
+		{
+			LoadingScreenState = ELoadScreenState::None;
+			LoadingScreenUserWidgetPtr->PlayMaskFadeIn();
+		}
+		else
+		{
+			FinishLoadingScreenCleanup();
+		}
 	}
-
-	CSV_EVENT(LoadingScreen, TEXT("Hide"));
-
-	const double LoadingScreenDuration = FPlatformTime::Seconds() - TimeLoadingScreenShown;
-	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面显示了 %.2f 秒"), LoadingScreenDuration);
-
-	LoadingScreenState = ELoadScreenState::None;
 
 	FThreadHeartBeat::Get().MonitorCheckpointEnd(GetFName());
 }
@@ -809,10 +833,6 @@ void ULoadingScreenManager::HideBlackScreen()
 
 	CSV_EVENT(LoadingScreen, TEXT("BlackScreen Hide"));
 
-	const double BlackScreenDuration = FPlatformTime::Seconds() - TimeBlackScreenShown;
-	UE_LOG(LogLoadingScreen, Log, TEXT("黑屏显示了 %.2f 秒"), BlackScreenDuration);
-
-
 
 	if (IsShowingInitialLoadingScreen())
 	{
@@ -829,11 +849,13 @@ void ULoadingScreenManager::HideBlackScreen()
 	{
 		LoadBlackScreenState = ELoadScreenState::None;
 		BlackScreenUserWidgetPtr->PlayFadeOut();
-		return;
+	}
+	else
+	{
+		// 无 UBlackScreenUserWidget，直接清理
+		FinishBlackScreenCleanup();
 	}
 
-	// 无 UBlackScreenUserWidget，直接清理
-	FinishBlackScreenCleanup();
 }
 
 void ULoadingScreenManager::RemoveBlackScreenWidgetFromViewport()
@@ -852,10 +874,22 @@ void ULoadingScreenManager::RemoveBlackScreenWidgetFromViewport()
 
 void ULoadingScreenManager::FinishBlackScreenCleanup()
 {
+	const double BlackScreenDuration = FPlatformTime::Seconds() - TimeBlackScreenShown;
+	UE_LOG(LogLoadingScreen, Log, TEXT("黑屏显示了 %.2f 秒"), BlackScreenDuration);
 	RemoveBlackScreenWidgetFromViewport();
 	ChangePerformanceSettingsForBlackScreen(/*bEnablingBlackScreen=*/ false);
 	LoadBlackScreenState = ELoadScreenState::None;
 	BlackScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ false);
+}
+
+void ULoadingScreenManager::FinishLoadingScreenCleanup()
+{
+	const double LoadingScreenDuration = FPlatformTime::Seconds() - TimeLoadingScreenShown;
+	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面显示了 %.2f 秒"), LoadingScreenDuration);
+	RemoveLoadingScreenWidgetFromViewport();
+	ChangePerformanceSettings(/*bEnableLoadingScreen=*/ false);
+	LoadingScreenState = ELoadScreenState::None;
+	LoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ false);
 }
 
 void ULoadingScreenManager::HandleBlackScreenFadeInCompleted()
@@ -880,6 +914,21 @@ void ULoadingScreenManager::HandleBlackScreenFadeOutCompleted()
 {
 	UE_LOG(LogLoadingScreen, Log, TEXT("黑屏淡出动画完成。"));
 	FinishBlackScreenCleanup();
+}
+
+void ULoadingScreenManager::HandleMaskFadeInCompleted()
+{
+	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面遮罩淡入动画完成--加载界面清理。"));
+	FinishLoadingScreenCleanup();
+	// 隐藏黑屏，进入游戏内
+	PrepareHideBlackScreen();
+}
+
+void ULoadingScreenManager::HandleMaskFadeOutCompleted()
+{
+	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面遮罩淡出动画完成---加载界面完成。"));
+	LoadingScreenState = ELoadScreenState::Loaded;
+	LoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ true);
 }
 
 void ULoadingScreenManager::StartBlockingInputForLoadingScreen()

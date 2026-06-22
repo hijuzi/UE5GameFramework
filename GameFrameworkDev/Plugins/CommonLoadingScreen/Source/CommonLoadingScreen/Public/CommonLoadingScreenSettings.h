@@ -34,6 +34,17 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=Loading)
 	int32 LoadingScreenZOrder = 10000;
 
+		// 加载界面遮罩淡入动画时长（秒）
+	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(ForceUnits=s))
+	float MaskFadeInDuration = 0.2f;
+
+	// 加载界面遮罩淡出动画时长（秒）
+	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(ForceUnits=s))
+	float MaskFadeOutDuration = 0.2f;
+
+
+
+
 	// 其他加载完成后额外保持加载界面的时长（秒），
 	// 以便给纹理流式加载留出时间，避免画面模糊
 	//

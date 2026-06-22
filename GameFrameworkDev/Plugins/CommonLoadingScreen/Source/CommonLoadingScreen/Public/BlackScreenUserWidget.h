@@ -74,6 +74,14 @@ protected:
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
+	/** 黑屏淡入动画完成时调用，蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen")
+	void OnFadeInFinished();
+
+	/** 黑屏淡出动画完成时调用，蓝图可重写 */
+	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen")
+	void OnFadeOutFinished();
+
 private:
 	/** 根 SBorder，黑色背景全屏覆盖 */
 	TSharedPtr<SBorder> RootBorder;

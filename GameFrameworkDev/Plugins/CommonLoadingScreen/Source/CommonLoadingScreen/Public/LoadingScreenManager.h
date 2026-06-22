@@ -17,6 +17,7 @@ class IInputProcessor;
 class ILoadingProcessInterface;
 class SWidget;
 class UBlackScreenUserWidget;
+class ULoadingProgressUserWidget;
 class UObject;
 class UWorld;
 struct FFrame;
@@ -101,6 +102,11 @@ private:
 	/** 加载加载界面 */
 	UE_API void LoadLoadingScreen();
 
+	/** 准备隐藏黑屏界面 */
+	UE_API void PrepareHideBlackScreen();
+
+	/** 准备隐藏加载界面 */
+	UE_API void PrepareHideLoadingScreen();
 
 	/** 返回系统/引擎条件是否需要黑屏。 */
 	UE_API bool CheckForSystemNeedBlackScreen();
@@ -138,6 +144,9 @@ private:
 	/** 黑屏淡出动画完成后的最终清理（移除控件、恢复性能设置、广播可见性） */
 	UE_API void FinishBlackScreenCleanup();
 
+	/** 加载界面遮罩淡出完成后的最终清理（移除控件、恢复性能设置、广播可见性） */
+	UE_API void FinishLoadingScreenCleanup();
+
 	/** 黑屏淡入动画完成的回调 */
 	UFUNCTION()
 	void HandleBlackScreenFadeInCompleted();
@@ -145,6 +154,14 @@ private:
 	/** 黑屏淡出动画完成的回调 */
 	UFUNCTION()
 	void HandleBlackScreenFadeOutCompleted();
+
+	/** 加载界面遮罩淡入动画完成的回调 */
+	UFUNCTION()
+	void HandleMaskFadeInCompleted();
+
+	/** 加载界面遮罩淡出动画完成的回调 */
+	UFUNCTION()
+	void HandleMaskFadeOutCompleted();
 
 	/** 加载界面可见时阻止游戏内输入 */
 	UE_API void StartBlockingInputForLoadingScreen();
@@ -177,6 +194,10 @@ private:
 	/** 黑屏 UserWidget 的引用，用于控制动画生命周期 */
 	UPROPERTY()
 	TObjectPtr<UBlackScreenUserWidget> BlackScreenUserWidgetPtr;
+
+	/** 加载界面 UserWidget 的引用，用于控制动画生命周期 */
+	UPROPERTY()
+	TObjectPtr<ULoadingProgressUserWidget> LoadingScreenUserWidgetPtr;
 
 	/** 加载界面显示时拦截所有输入的输入处理器 */
 	TSharedPtr<IInputProcessor> InputPreProcessor;

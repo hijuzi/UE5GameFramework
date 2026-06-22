@@ -23,7 +23,7 @@ void UBlackScreenUserWidget::NativeConstruct()
 TSharedRef<SWidget> UBlackScreenUserWidget::RebuildWidget()
 {
 	RootBorder = SNew(SBorder)
-		.BorderBackgroundColor(FLinearColor::White)
+		.BorderBackgroundColor(FLinearColor::Black)
 		.Padding(0);
 
 	// 初始状态：完全透明，等待 PlayFadeIn 调用
@@ -106,16 +106,14 @@ void UBlackScreenUserWidget::NativeTick(const FGeometry& MyGeometry, float InDel
 		const EFadeState CompletedState = FadeState;
 		FadeState = EFadeState::None;
 
-		if (CompletedState == EFadeState::FadingIn)
-		{
-			SetRenderOpacity(1.0f);
-			OnFadeInCompleted.Broadcast();
-		}
-		else
-		{
-			SetRenderOpacity(0.0f);
-			OnFadeOutCompleted.Broadcast();
-		}
+	if (CompletedState == EFadeState::FadingIn)
+	{
+		OnFadeInFinished();
+	}
+	else
+	{
+		OnFadeOutFinished();
+	}
 	}
 }
 
@@ -132,4 +130,16 @@ float UBlackScreenUserWidget::ApplyEasing(float Alpha, EBlackScreenFadeEasing Ea
 	default:
 		return Alpha;
 	}
+}
+
+void UBlackScreenUserWidget::OnFadeInFinished_Implementation()
+{
+	SetRenderOpacity(1.0f);
+	OnFadeInCompleted.Broadcast();
+}
+
+void UBlackScreenUserWidget::OnFadeOutFinished_Implementation()
+{
+	SetRenderOpacity(0.0f);
+	OnFadeOutCompleted.Broadcast();
 }
