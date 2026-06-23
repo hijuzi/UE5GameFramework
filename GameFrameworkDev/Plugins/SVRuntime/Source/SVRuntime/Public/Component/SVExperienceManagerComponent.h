@@ -36,6 +36,7 @@ public:
 
 	//~ Begin ILoadingProcessInterface
 	virtual bool ShouldShowLoadingScreen(FString& OutReason) const override;
+	virtual void GetLoadingScreenOverrideConfig(FLoadingScreenOverrideConfig& OutConfig) const override;
 	//~ End ILoadingProcessInterface
 
 protected:

@@ -16,8 +16,8 @@ void UBlackScreenUserWidget::NativeConstruct()
 
 	// 从项目设置中读取动画配置，避免外部注入
 	const UCommonLoadingScreenSettings* Settings = GetDefault<UCommonLoadingScreenSettings>();
-	FadeInDuration = Settings->BlackScreenFadeInDuration;
-	FadeOutDuration = Settings->BlackScreenFadeOutDuration;
+	FadeInDuration = Settings->BlackScreenLoadDuration;
+	FadeOutDuration = Settings->BlackScreenUnloadDuration;
 
 	// Widget 显示即启动 Ticker（暂停时也不中断）
 	StartTicker();
@@ -157,15 +157,15 @@ void UBlackScreenUserWidget::StopTicker()
 	}
 }
 
-float UBlackScreenUserWidget::ApplyEasing(float Alpha, EBlackScreenFadeEasing Easing)
+float UBlackScreenUserWidget::ApplyEasing(float Alpha, EFadeEasing Easing)
 {
 	switch (Easing)
 	{
-	case EBlackScreenFadeEasing::None:
+	case EFadeEasing::None:
 		return Alpha;
-	case EBlackScreenFadeEasing::EaseIn:
+	case EFadeEasing::EaseIn:
 		return Alpha * Alpha;
-	case EBlackScreenFadeEasing::EaseOut:
+	case EFadeEasing::EaseOut:
 		return Alpha * (2.0f - Alpha);
 	default:
 		return Alpha;

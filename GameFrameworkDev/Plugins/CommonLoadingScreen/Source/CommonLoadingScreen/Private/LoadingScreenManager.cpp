@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LoadingScreenManager.h"
+#include "CommonLoadingScreenLog.h"
 
 #include "HAL/ThreadHeartBeat.h"
 
@@ -33,9 +34,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LoadingScreenManager)
 
-DECLARE_LOG_CATEGORY_EXTERN(LogLoadingScreen, Log, All);
-DEFINE_LOG_CATEGORY(LogLoadingScreen);
-
 //@TODO: 为什么 GetLocalPlayers() 会有 nullptr 条目？真的会发生吗？
 //@TODO: 在 PIE 模拟模式下测试，决定加载界面行为应该有多少（如果有的话）
 //@TODO: 允许除 GameState/PlayerController（及其拥有的组件）之外的其他实现 ILoadingProcessInterface 的对象注册为感兴趣方
@@ -66,6 +64,80 @@ bool ILoadingProcessInterface::ShouldShowLoadingScreen(UObject* TestObject, FStr
 	}
 
 	return false;
+}
+
+FLoadingScreenOverrideConfig ILoadingProcessInterface::GetLoadingScreenOverrideConfig(const UObject* WorldContextObject)
+{
+	FLoadingScreenOverrideConfig Config;
+
+	if (!WorldContextObject)
+	{
+		return Config;
+	}
+
+	const UWorld* World = WorldContextObject->GetWorld();
+	if (!World)
+	{
+		return Config;
+	}
+
+	// 检查 GameState 及其组件
+	if (AGameStateBase* GameState = World->GetGameState<AGameStateBase>())
+	{
+		if (ILoadingProcessInterface* Iface = Cast<ILoadingProcessInterface>(GameState))
+		{
+			Iface->GetLoadingScreenOverrideConfig(Config);
+			if (Config.bOverrideTiming || Config.bOverrideContent)
+			{
+				return Config;
+			}
+		}
+
+		for (UActorComponent* Comp : GameState->GetComponents())
+		{
+			if (ILoadingProcessInterface* Iface = Cast<ILoadingProcessInterface>(Comp))
+			{
+				Iface->GetLoadingScreenOverrideConfig(Config);
+				if (Config.bOverrideTiming || Config.bOverrideContent)
+				{
+					return Config;
+				}
+			}
+		}
+	}
+
+	// 检查 PlayerController 及其组件
+	if (const UGameInstance* GI = World->GetGameInstance())
+	{
+		for (ULocalPlayer* LP : GI->GetLocalPlayers())
+		{
+			if (LP && LP->PlayerController)
+			{
+				if (ILoadingProcessInterface* Iface = Cast<ILoadingProcessInterface>(LP->PlayerController))
+				{
+					Iface->GetLoadingScreenOverrideConfig(Config);
+					if (Config.bOverrideTiming || Config.bOverrideContent)
+					{
+						return Config;
+					}
+				}
+
+				for (UActorComponent* Comp : LP->PlayerController->GetComponents())
+				{
+					if (ILoadingProcessInterface* Iface = Cast<ILoadingProcessInterface>(Comp))
+					{
+						Iface->GetLoadingScreenOverrideConfig(Config);
+						if (Config.bOverrideTiming || Config.bOverrideContent)
+						{
+							return Config;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return Config;
 }
 
 //////////////////////////////////////////////////////////////////////

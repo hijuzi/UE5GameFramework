@@ -148,9 +148,6 @@ private:
 
 	/** 加载界面最小显示时长（秒），从 CommonLoadingScreenSettings 读取 */
 	float MinimumLoadingScreenDisplayTimeSecs = 2.0f;
-
-	/** 平滑进度累计时间，每 Tick 累加 DeltaTime，用于进度插值 */
-	float SmoothedProgressTime = 0.0f;
 };
 
 #undef UE_API

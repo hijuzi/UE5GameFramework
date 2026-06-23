@@ -39,10 +39,12 @@ public class CommonLoadingScreen : ModuleRules
 				"Slate",
 				"SlateCore",
 				"InputCore",
+				"MoviePlayer",
 				"PreLoadScreen",
 				"RenderCore",
 				"DeveloperSettings",
-				"UMG"
+				"UMG", 
+				"MoviePlayer"
 			}
 			);
 		

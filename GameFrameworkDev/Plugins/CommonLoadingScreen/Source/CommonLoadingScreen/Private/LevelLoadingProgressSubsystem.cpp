@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LevelLoadingProgressSubsystem.h"
+#include "CommonLoadingScreenLog.h"
 #include "CommonLoadingScreenSettings.h"
 
 #include "Engine/GameInstance.h"
@@ -11,8 +12,6 @@
 #include "Kismet/GameplayStatics.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelLoadingProgressSubsystem)
-
-DEFINE_LOG_CATEGORY_STATIC(LogLevelLoadingProgress, Log, All);
 
 //////////////////////////////////////////////////////////////////////
 // ULevelLoadingProgressSubsystem
@@ -120,8 +119,6 @@ void ULevelLoadingProgressSubsystem::TickProgress()
 {
 	const double Elapsed = FPlatformTime::Seconds() - PhaseStartTime;
 
-	// 累加平滑进度时间
-	SmoothedProgressTime += ProgressTickInterval;
 	// 阶段自动推进
 	switch (CurrentLoadingPhase)
 	{
@@ -162,7 +159,6 @@ void ULevelLoadingProgressSubsystem::TickProgress()
 	case ELevelLoadingPhase::Completed:
 	{
 		CachedProgress = 100.0f;
-		SmoothedProgressTime = MinimumLoadingScreenDisplayTimeSecs;
 
 		// 完成后移除 Ticker
 		if (ProgressTickerHandle.IsValid())
@@ -176,12 +172,8 @@ void ULevelLoadingProgressSubsystem::TickProgress()
 		break;
 	}
 
-	// 计算并缓存当前进度，取实际阶段进度与时间平滑上限的较小值
-	const float PhaseProgress = CalculatePhaseProgress();
-	const float TimeBasedMax = MinimumLoadingScreenDisplayTimeSecs > 0.0f
-		? (SmoothedProgressTime / MinimumLoadingScreenDisplayTimeSecs) * 100.0f
-		: 100.0f;
-	CachedProgress = FMath::Min(PhaseProgress, TimeBasedMax);
+	// 计算并缓存当前进度
+	CachedProgress = CalculatePhaseProgress();
 
 	if (GEngine)
 	{
@@ -252,7 +244,6 @@ void ULevelLoadingProgressSubsystem::HandlePreLoadMap(const FWorldContext& World
 	bCurrentlyInLoadMap = true;
 	PreLoadMapName = MapName;
 	LoadingStartTime = FPlatformTime::Seconds();
-	SmoothedProgressTime = 0.0f;
 
 	// 进入准备阶段
 	SetLoadingPhase(ELevelLoadingPhase::Preparing);

@@ -5,10 +5,53 @@
 #include "Engine/DeveloperSettingsBackedByCVars.h"
 #include "UObject/SoftObjectPath.h"
 
-#include "BlackScreenUserWidget.h"
 #include "CommonLoadingScreenSettings.generated.h"
 
 class UObject;
+
+/**
+ * 缓动类型，用于加载界面和黑屏的淡入淡出动画。
+ */
+UENUM(BlueprintType)
+enum class EFadeEasing : uint8
+{
+	None		UMETA(DisplayName = "无"),
+	EaseIn		UMETA(DisplayName = "缓入"),
+	EaseOut		UMETA(DisplayName = "缓出"),
+};
+
+/**
+ * 加载动画过渡类型，决定加载界面和黑屏的显示/隐藏方式。
+ */
+UENUM(BlueprintType)
+enum class ELoadingAnimationType : uint8
+{
+	Opacity		UMETA(DisplayName = "改变透明度"),
+	Translation	UMETA(DisplayName = "移动位置"),
+	Scale		UMETA(DisplayName = "缩放"),
+};
+
+/**
+ * 加载动画插值模式，控制动画曲线。
+ */
+UENUM(BlueprintType)
+enum class ELoadingAnimationMode : uint8
+{
+	Linear		UMETA(DisplayName = "线性"),
+	Sine		UMETA(DisplayName = "正弦"),
+	Quadratic	UMETA(DisplayName = "二次方"),
+	Cubic		UMETA(DisplayName = "立方"),
+};
+
+/**
+ * 加载界面内容类型，决定加载界面显示的背景内容。
+ */
+UENUM(BlueprintType)
+enum class ELoadingScreenContentType : uint8
+{
+	Image		UMETA(DisplayName = "图片背景"),
+	Video		UMETA(DisplayName = "视频"),
+};
 
 /**
  * 加载界面系统的设置。
@@ -26,21 +69,41 @@ public:
 	// 加载界面
 	//~=========================================================================
 
-	// 加载界面所使用的控件。
-	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(MetaClass="/Script/UMG.UserWidget"))
+	// 加载界面所使用的控件，必须派生自 ULoadingProgressUserWidget。
+	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(MetaClass="/Script/CommonLoadingScreen.LoadingProgressUserWidget"))
 	FSoftClassPath LoadingScreenWidget;
 
 	// 加载界面控件在视口堆栈中的 Z 顺序
 	UPROPERTY(config, EditAnywhere, Category=Loading)
 	int32 LoadingScreenZOrder = 10000;
 
-		// 加载界面遮罩淡入动画时长（秒）
+	// 加载界面加载时长（秒），淡入动画时长
 	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(ForceUnits=s))
-	float MaskFadeInDuration = 0.2f;
+	float LoadingScreenLoadDuration = 0.5f;
 
-	// 加载界面遮罩淡出动画时长（秒）
+	// 加载界面卸载时长（秒），淡出动画时长
 	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(ForceUnits=s))
-	float MaskFadeOutDuration = 0.2f;
+	float LoadingScreenUnloadDuration = 0.5f;
+
+	// 加载界面动画过渡类型
+	UPROPERTY(config, EditAnywhere, Category=Loading)
+	ELoadingAnimationType LoadingScreenAnimationType = ELoadingAnimationType::Opacity;
+
+	// 加载界面动画插值模式
+	UPROPERTY(config, EditAnywhere, Category=Loading)
+	ELoadingAnimationMode LoadingScreenAnimationMode = ELoadingAnimationMode::Linear;
+
+	// 加载界面内容类型
+	UPROPERTY(config, EditAnywhere, Category=Loading)
+	ELoadingScreenContentType LoadingScreenContentType = ELoadingScreenContentType::Image;
+
+	// 图片背景资产（ContentType 为 Image 时生效）
+	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(MetaClass="/Script/Engine.Texture2D"))
+	FSoftObjectPath LoadingScreenImageBackground;
+
+	// 视频路径（ContentType 为 Video 时生效）
+	UPROPERTY(config, EditAnywhere, Category=Loading)
+	FString LoadingScreenVideoPath;
 
 	// 加载界面的最小显示时长（秒）。
 	// 即使关卡加载已完成，也会至少显示这么长时间；
@@ -95,13 +158,21 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=BlackScreen)
 	int32 BlackScreenZOrder = 9000;
 
-	// 黑屏淡入动画时长（秒）
+	// 黑屏加载时长（秒），淡入动画时长
 	UPROPERTY(config, EditAnywhere, Category=BlackScreen, meta=(ForceUnits=s))
-	float BlackScreenFadeInDuration = 0.3f;
+	float BlackScreenLoadDuration = 0.5f;
 
-	// 黑屏淡出动画时长（秒）
+	// 黑屏卸载时长（秒），淡出动画时长
 	UPROPERTY(config, EditAnywhere, Category=BlackScreen, meta=(ForceUnits=s))
-	float BlackScreenFadeOutDuration = 0.3f;
+	float BlackScreenUnloadDuration = 0.5f;
+
+	// 黑屏动画过渡类型
+	UPROPERTY(config, EditAnywhere, Category=BlackScreen)
+	ELoadingAnimationType BlackScreenAnimationType = ELoadingAnimationType::Opacity;
+
+	// 黑屏动画插值模式
+	UPROPERTY(config, EditAnywhere, Category=BlackScreen)
+	ELoadingAnimationMode BlackScreenAnimationMode = ELoadingAnimationMode::Linear;
 
 	// 黑屏消失后额外保持的时长（秒），以便给纹理流式加载留出时间，避免画面模糊
 	UPROPERTY(config, EditAnywhere, Category=BlackScreen, meta=(ForceUnits=s))

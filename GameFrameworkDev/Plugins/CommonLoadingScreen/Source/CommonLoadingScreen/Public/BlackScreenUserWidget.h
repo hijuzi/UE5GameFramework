@@ -3,22 +3,12 @@
 #pragma once
 
 #include "Blueprint/UserWidget.h"
+#include "CommonLoadingScreenSettings.h"
 #include "Containers/Ticker.h"
 
 #include "BlackScreenUserWidget.generated.h"
 
 class SBorder;
-
-/**
- * 黑屏淡入淡出的缓动类型
- */
-UENUM(BlueprintType)
-enum class EBlackScreenFadeEasing : uint8
-{
-	None		UMETA(DisplayName = "无"),
-	EaseIn		UMETA(DisplayName = "缓入"),
-	EaseOut		UMETA(DisplayName = "缓出"),
-};
 
 /** 黑屏动画完成时广播 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackScreenAnimationCompleted);
@@ -92,7 +82,7 @@ private:
 	/** 缓存的动画配置，在 NativeConstruct 中从 UCommonLoadingScreenSettings 读取 */
 	float FadeInDuration = 0.3f;
 	float FadeOutDuration = 0.3f;
-	EBlackScreenFadeEasing FadeEasing = EBlackScreenFadeEasing::None;
+	EFadeEasing FadeEasing = EFadeEasing::None;
 
 	enum class EFadeState : uint8 { None, FadingIn, FadingOut };
 	EFadeState FadeState = EFadeState::None;
@@ -104,7 +94,7 @@ private:
 	/** Tick 中驱动自身渐入渐出动画 */
 	void TickSelfFade(float InDeltaTime);
 
-	static float ApplyEasing(float Alpha, EBlackScreenFadeEasing Easing);
+	static float ApplyEasing(float Alpha, EFadeEasing Easing);
 
 	FTSTicker::FDelegateHandle TickerHandle;
 

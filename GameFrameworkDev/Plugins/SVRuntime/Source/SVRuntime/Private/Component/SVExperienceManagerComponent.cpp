@@ -137,27 +137,46 @@ bool USVExperienceManagerComponent::ShouldShowLoadingScreen(FString& OutReason) 
 	return false;
 }
 
+void USVExperienceManagerComponent::GetLoadingScreenOverrideConfig(FLoadingScreenOverrideConfig& OutConfig) const
+{
+	const USVBaseExperienceDefinition* ExperienceDef = USVBaseExperienceDefinition::GetCurrentExperienceDefinition(GetWorld());
+	if (!ExperienceDef)
+	{
+		return;
+	}
+
+	// Timing 覆盖
+	if (ExperienceDef->bOverrideLoadingScreenTiming)
+	{
+		OutConfig.bOverrideTiming   = true;
+		OutConfig.LoadDuration      = ExperienceDef->LoadingScreenLoadDurationOverride;
+		OutConfig.UnloadDuration    = ExperienceDef->LoadingScreenUnloadDurationOverride;
+		OutConfig.AnimationType     = static_cast<uint8>(ExperienceDef->LoadingScreenAnimationTypeOverride);
+		OutConfig.AnimationMode     = static_cast<uint8>(ExperienceDef->LoadingScreenAnimationModeOverride);
+	}
+
+	// Content 覆盖
+	if (ExperienceDef->bOverrideLoadingScreenContent)
+	{
+		OutConfig.bOverrideContent  = true;
+		OutConfig.ContentType       = static_cast<uint8>(ExperienceDef->LoadingScreenContentTypeOverride);
+		OutConfig.ImageBackground   = ExperienceDef->LoadingScreenImageBackgroundOverride;
+		OutConfig.VideoPath         = ExperienceDef->LoadingScreenVideoPathOverride;
+	}
+}
+
 void USVExperienceManagerComponent::OnExperienceLoaded()
 {
 	// 从 WorldSettings 获取 ExperienceDefinition，读取 UI 类配置
-	if (const UWorld* World = GetWorld())
+	if (const USVBaseExperienceDefinition* ExperienceDef = USVBaseExperienceDefinition::GetCurrentExperienceDefinition(GetWorld()))
 	{
-		if (const ASVWorldSettings* WorldSettings = Cast<ASVWorldSettings>(World->GetWorldSettings()))
-		{
-			if (UClass* ExperienceClass = WorldSettings->GetDefaultGameplayExperienceSoftPtr().LoadSynchronous())
-			{
-			if (const USVBaseExperienceDefinition* ExperienceDef = GetDefault<USVBaseExperienceDefinition>(ExperienceClass))
-			{
-				MainScreenClass = ExperienceDef->MainScreenClass;
+		MainScreenClass = ExperienceDef->MainScreenClass;
 
-				// Login 类型的 Experience 额外提供 PressStartScreenClass 和 CompilingShadersScreenClass
-				if (const USVLoginExperienceDefinition* LoginExperienceDef = Cast<USVLoginExperienceDefinition>(ExperienceDef))
-				{
-					CompilingShadersScreenClass = LoginExperienceDef->CompilingShadersScreenClass;
-					PressStartScreenClass = LoginExperienceDef->PressStartScreenClass;
-				}
-			}
-			}
+		// Login 类型的 Experience 额外提供 PressStartScreenClass 和 CompilingShadersScreenClass
+		if (const USVLoginExperienceDefinition* LoginExperienceDef = Cast<USVLoginExperienceDefinition>(ExperienceDef))
+		{
+			CompilingShadersScreenClass = LoginExperienceDef->CompilingShadersScreenClass;
+			PressStartScreenClass = LoginExperienceDef->PressStartScreenClass;
 		}
 	}
 	bShouldShowLoadingScreen = true;
