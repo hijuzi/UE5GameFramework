@@ -120,9 +120,10 @@ void ULoadingScreenManager::Initialize(FSubsystemCollectionBase& Collection)
 {
 	FCoreUObjectDelegates::PreLoadMapWithContext.AddUObject(this, &ThisClass::HandlePreLoadMap);
 	FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &ThisClass::HandlePostLoadMap);
-
 	const UGameInstance* LocalGameInstance = GetGameInstance();
 	check(LocalGameInstance);
+
+	StartTicker();
 }
 
 void ULoadingScreenManager::Deinitialize()
@@ -136,8 +137,7 @@ void ULoadingScreenManager::Deinitialize()
 	FCoreUObjectDelegates::PreLoadMap.RemoveAll(this);
 	FCoreUObjectDelegates::PostLoadMapWithWorld.RemoveAll(this);
 
-	// 已完成工作，不再尝试 Tick 本对象
-	SetTickableTickType(ETickableTickType::Never);
+	StopTicker();
 }
 
 bool ULoadingScreenManager::ShouldCreateSubsystem(UObject* Outer) const
@@ -173,8 +173,42 @@ void ULoadingScreenManager::LoadBlackScreen()
 	}
 }
 
-void ULoadingScreenManager::Tick(float DeltaTime)
+void ULoadingScreenManager::StartTicker()
 {
+	if (!TickerHandle.IsValid())
+	{
+		TWeakObjectPtr<ULoadingScreenManager> WeakThis(this);
+		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+			FTickerDelegate::CreateLambda([WeakThis](float DeltaTime) -> bool
+			{
+				if (ULoadingScreenManager* StrongThis = WeakThis.Get())
+				{
+					StrongThis->ManagerTick(DeltaTime);
+					return true;
+				}
+				return false;
+			}));
+	}
+}
+
+void ULoadingScreenManager::StopTicker()
+{
+	if (TickerHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+		TickerHandle.Reset();
+	}
+}
+
+void ULoadingScreenManager::ManagerTick(float DeltaTime)
+{
+	// 如果没有游戏视口客户端则不 Tick，这里捕获的是 ShouldCreateSubsystem 未覆盖的情况
+	UGameInstance* GameInstance = GetGameInstance();
+	if (!GameInstance || !GameInstance->GetGameViewportClient())
+	{
+		return;
+	}
+
 	if (LoadBlackScreenState == ELoadScreenState::PendingLoad)
 	{
 		LoadBlackScreen();
@@ -200,32 +234,6 @@ void ULoadingScreenManager::Tick(float DeltaTime)
 		UE_LOG(LogLoadingScreen, Log, TEXT("加载界面状态: %s. 原因: %s"), *UEnum::GetValueAsString(LoadingScreenState), *DebugReasonForShowingOrHidingLoadingScreen);
 		UE_LOG(LogLoadingScreen, Log, TEXT("黑屏状态: %s. 原因: %s"), *UEnum::GetValueAsString(LoadBlackScreenState), *DebugReasonForBlackScreen);
 	}
-}
-
-ETickableTickType ULoadingScreenManager::GetTickableTickType() const
-{
-	if (IsTemplate())
-	{
-		return ETickableTickType::Never;
-	}
-	return ETickableTickType::Conditional;
-}
-
-bool ULoadingScreenManager::IsTickable() const
-{
-	// 如果没有游戏视口客户端则不 Tick，这里捕获的是 ShouldCreateSubsystem 未覆盖的情况
-	UGameInstance* GameInstance = GetGameInstance();
-	return (GameInstance && GameInstance->GetGameViewportClient());
-}
-
-TStatId ULoadingScreenManager::GetStatId() const
-{
-	RETURN_QUICK_DECLARE_CYCLE_STAT(ULoadingScreenManager, STATGROUP_Tickables);
-}
-
-UWorld* ULoadingScreenManager::GetTickableGameObjectWorld() const
-{
-	return GetGameInstance()->GetWorld();
 }
 
 void ULoadingScreenManager::RegisterLoadingProcessor(TScriptInterface<ILoadingProcessInterface> Interface)
@@ -283,12 +291,25 @@ void ULoadingScreenManager::LoadLoadingScreen()
 
 	if (ShouldShowLoadingScreenWidget())
 	{
+		// 白名单通过，重置计数器并显示加载界面
+		LoadingScreenWhitelistAccumulatedFrames = 0;
 		ShowLoadingScreen();
 	}
 	else
 	{
-		// 延迟到Tick中检查，设置等待
-		LoadingScreenState = ELoadScreenState::PendingLoad;
+		LoadingScreenWhitelistAccumulatedFrames += 1;
+		const int32 WhitelistCheckFrames = GetDefault<UCommonLoadingScreenSettings>()->LoadingScreenWhitelistCheckFrames;
+		if (LoadingScreenWhitelistAccumulatedFrames >= WhitelistCheckFrames)
+		{
+			UE_LOG(LogLoadingScreen, Log, TEXT("LoadLoadingScreen: 加载界面白名单累计帧数超过%d帧，强制隐藏加载界面"), WhitelistCheckFrames);
+			LoadingScreenState = ELoadScreenState::None;
+			PrepareHideBlackScreen();
+		}
+		else
+		{
+			// 延迟到Tick中检查，设置等待
+			LoadingScreenState = ELoadScreenState::PendingLoad;
+		}
 	}
 }
 
@@ -752,9 +773,6 @@ void ULoadingScreenManager::ShowBlackScreen()
 		return;
 	}
 
-	TimeBlackScreenShown = FPlatformTime::Seconds();
-
-
 	CSV_EVENT(LoadingScreen, TEXT("BlackScreen Show"));
 
 	const UCommonLoadingScreenSettings* Settings = GetDefault<UCommonLoadingScreenSettings>();
@@ -782,6 +800,8 @@ void ULoadingScreenManager::ShowBlackScreen()
 		if (UBlackScreenUserWidget* BlackScreenWidgetInstance = Cast<UBlackScreenUserWidget>(UserWidget))
 		{
 			UE_LOG(LogLoadingScreen, Log, TEXT("BlackScreenUserWidget 创建成功。"));
+			
+			TimeBlackScreenShown = FPlatformTime::Seconds();
 
 			LoadBlackScreenState = ELoadScreenState::Loaded;
 			BlackScreenWidget = BlackScreenWidgetInstance->TakeWidget();
@@ -882,6 +902,7 @@ void ULoadingScreenManager::FinishLoadingScreenCleanup()
 	UE_LOG(LogLoadingScreen, Log, TEXT("加载界面显示了 %.2f 秒"), LoadingScreenDuration);
 	RemoveLoadingScreenWidgetFromViewport();
 	ChangePerformanceSettings(/*bEnableLoadingScreen=*/ false);
+	LoadingScreenWhitelistAccumulatedFrames = 0;
 	LoadingScreenState = ELoadScreenState::None;
 	LoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ false);
 }
@@ -894,6 +915,7 @@ void ULoadingScreenManager::HandleBlackScreenLoadAnimationCompleted()
 
 	if (BlackScreenUserWidgetPtr && BlackScreenUserWidgetPtr->ShouldShowLoadingScreen())
 	{
+		LoadingScreenWhitelistAccumulatedFrames = 0;
 		// 开始加载界面
 		LoadingScreenState = ELoadScreenState::PendingLoad;
 	}

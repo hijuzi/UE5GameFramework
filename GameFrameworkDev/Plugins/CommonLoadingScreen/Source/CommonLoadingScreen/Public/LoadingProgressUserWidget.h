@@ -3,16 +3,14 @@
 #pragma once
 
 #include "Blueprint/UserWidget.h"
+#include "Containers/Ticker.h"
 
 #include "LoadingProgressUserWidget.generated.h"
 
 class SBorder;
 class SCanvas;
 class SOverlay;
-class SProgressBar;
-class STextBlock;
 class SImage;
-class SVerticalBox;
 
 /**
  * 遮罩淡入淡出的缓动类型
@@ -34,9 +32,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnLoadingScreenAnimationCompleted);
  * 核心结构：
  *   SOverlay（根节点）
  *     ├── SImage（背景图）
- *     ├── SVerticalBox（居中，进度层）
- *     │     ├── STextBlock（进度文字）
- *     │     └── SProgressBar（进度条）
+ *     ├── WidgetTree 内容（蓝图子类在此添加自定义控件）
  *     └── SCanvas（全局展开，遮罩画板，带渐入渐出动画）
  *           └── SBorder（全局展开，黑屏）
  *
@@ -52,21 +48,13 @@ class COMMONLOADINGSCREEN_API ULoadingProgressUserWidget : public UUserWidget
 public:
 	ULoadingProgressUserWidget(const FObjectInitializer& ObjectInitializer);
 
-	/** 设置进度（0.0 ~ 1.0） */
-	UFUNCTION(BlueprintCallable, Category = "Loading Progress")
+	/** 设置进度（0.0 ~ 1.0），BlueprintNativeEvent 供蓝图子类重载刷新逻辑 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Loading Progress")
 	void SetProgress(float InProgress);
 
 	/** 获取当前进度 */
 	UFUNCTION(BlueprintPure, Category = "Loading Progress")
 	float GetProgress() const;
-
-	/** 设置进度文字 */
-	UFUNCTION(BlueprintCallable, Category = "Loading Progress")
-	void SetProgressText(const FText& InText);
-
-	/** 获取当前进度文字 */
-	UFUNCTION(BlueprintPure, Category = "Loading Progress")
-	FText GetProgressText() const;
 
 	/** 设置背景画刷 */
 	UFUNCTION(BlueprintCallable, Category = "Loading Progress")
@@ -95,10 +83,11 @@ public:
 
 protected:
 	//~ UUserWidget interface
+	virtual void NativePreConstruct() override;
+	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
-	virtual void NativeConstruct() override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	/** 卸载动画完成时调用，蓝图可重写 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Loading Progress|Animation")
@@ -111,15 +100,6 @@ protected:
 private:
 	/** 根 SOverlay */
 	TSharedPtr<SOverlay> RootOverlay;
-
-	/** 进度条控件 */
-	TSharedPtr<SProgressBar> ProgressBar;
-
-	/** 进度文字控件 */
-	TSharedPtr<STextBlock> ProgressTextBlock;
-
-	/** 进度层容器（居中） */
-	TSharedPtr<SVerticalBox> ProgressLayer;
 
 	/** 背景图片控件 */
 	TSharedPtr<SImage> BackgroundImage;
@@ -146,8 +126,18 @@ private:
 	EMaskFadeState MaskFadeState = EMaskFadeState::None;
 	float MaskFadeElapsed = 0.0f;
 
+	/** 替代 NativeTick，由 FTSTicker 驱动（暂停时仍运行） */
+	void CustomTick(float InDeltaTime);
+
 	/** Tick 中驱动遮罩渐入渐出动画 */
 	void TickMaskFade(float InDeltaTime);
 
+	/** 从子系统更新进度并刷新 UI */
+	void TickProgressUpdate();
+
 	static float ApplyEasing(float Alpha, EMaskFadeEasing Easing);
+
+	FTSTicker::FDelegateHandle TickerHandle;
+	void StartTicker();
+	void StopTicker();
 };

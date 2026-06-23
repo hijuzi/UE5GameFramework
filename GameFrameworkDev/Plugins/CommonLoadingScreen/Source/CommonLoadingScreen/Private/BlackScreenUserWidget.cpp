@@ -18,6 +18,9 @@ void UBlackScreenUserWidget::NativeConstruct()
 	const UCommonLoadingScreenSettings* Settings = GetDefault<UCommonLoadingScreenSettings>();
 	FadeInDuration = Settings->BlackScreenFadeInDuration;
 	FadeOutDuration = Settings->BlackScreenFadeOutDuration;
+
+	// Widget 显示即启动 Ticker（暂停时也不中断）
+	StartTicker();
 }
 
 TSharedRef<SWidget> UBlackScreenUserWidget::RebuildWidget()
@@ -37,6 +40,12 @@ TSharedRef<SWidget> UBlackScreenUserWidget::RebuildWidget()
 	}
 
 	return RootBorder.ToSharedRef();
+}
+
+void UBlackScreenUserWidget::NativeDestruct()
+{
+	StopTicker();
+	Super::NativeDestruct();
 }
 
 void UBlackScreenUserWidget::ReleaseSlateResources(bool bReleaseChildren)
@@ -81,16 +90,6 @@ void UBlackScreenUserWidget::PlayUnloadAnimation_Implementation()
 	SetVisibility(ESlateVisibility::Visible);
 }
 
-void UBlackScreenUserWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
-{
-	Super::NativeTick(MyGeometry, InDeltaTime);
-
-	if (IsFading())
-	{
-		TickSelfFade(InDeltaTime);
-	}
-}
-
 void UBlackScreenUserWidget::TickSelfFade(float InDeltaTime)
 {
 	const float Duration = (FadeState == EFadeState::FadingIn) ? FadeInDuration : FadeOutDuration;
@@ -109,6 +108,8 @@ void UBlackScreenUserWidget::TickSelfFade(float InDeltaTime)
 		const EFadeState CompletedState = FadeState;
 		FadeState = EFadeState::None;
 
+		// Ticker 保持运行（Widget 仍显示中），只是停止动画驱动
+
 		if (CompletedState == EFadeState::FadingIn)
 		{
 			OnLoadAnimationFinished();
@@ -117,6 +118,42 @@ void UBlackScreenUserWidget::TickSelfFade(float InDeltaTime)
 		{
 			OnUnloadAnimationFinished();
 		}
+	}
+}
+
+void UBlackScreenUserWidget::CustomTick(float InDeltaTime)
+{
+	if (IsFading())
+	{
+		TickSelfFade(InDeltaTime);
+	}
+}
+
+void UBlackScreenUserWidget::StartTicker()
+{
+	if (!TickerHandle.IsValid())
+	{
+		TWeakObjectPtr<UBlackScreenUserWidget> WeakThis(this);
+		TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+			FTickerDelegate::CreateLambda([WeakThis](float DeltaTime) -> bool
+			{
+				UBlackScreenUserWidget* StrongThis = WeakThis.Get();
+				if (!StrongThis)
+				{
+					return false;
+				}
+				StrongThis->CustomTick(DeltaTime);
+				return true;
+			}));
+	}
+}
+
+void UBlackScreenUserWidget::StopTicker()
+{
+	if (TickerHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+		TickerHandle.Reset();
 	}
 }
 

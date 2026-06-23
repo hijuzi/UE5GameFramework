@@ -78,6 +78,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=Loading)
 	bool ForceTickLoadingScreenEvenInEditor = true;
 
+	// 加载界面白名单检测帧数，每隔 N 帧检查一次是否需要隐藏加载界面
+	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(ClampMin=1, ClampMax=100))
+	int32 LoadingScreenWhitelistCheckFrames = 10;
+
 	//~=========================================================================
 	// 黑屏
 	//~=========================================================================

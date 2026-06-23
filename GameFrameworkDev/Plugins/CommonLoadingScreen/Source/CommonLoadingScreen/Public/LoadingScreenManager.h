@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Subsystems/GameInstanceSubsystem.h"
-#include "Tickable.h"
+#include "Containers/Ticker.h"
 #include "UObject/WeakInterfacePtr.h"
 
 #include "LoadingScreenManager.generated.h"
@@ -37,7 +37,7 @@ enum class ELoadScreenState : uint8
  * 负责加载界面的显示与隐藏
  */
 UCLASS(MinimalAPI)
-class ULoadingScreenManager : public UGameInstanceSubsystem, public FTickableGameObject
+class ULoadingScreenManager : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
@@ -47,14 +47,6 @@ public:
 	UE_API virtual void Deinitialize() override;
 	UE_API virtual bool ShouldCreateSubsystem(UObject* Outer) const override;
 	//~End of USubsystem 接口
-
-	//~FTickableObjectBase 接口
-	UE_API virtual void Tick(float DeltaTime) override;
-	UE_API virtual ETickableTickType GetTickableTickType() const override;
-	UE_API virtual bool IsTickable() const override;
-	UE_API virtual TStatId GetStatId() const override;
-	UE_API virtual UWorld* GetTickableGameObjectWorld() const override;
-	//~End of FTickableObjectBase 接口
 
 	UFUNCTION(BlueprintCallable, Category=LoadingScreen)
 	FString GetDebugReasonForShowingOrHidingLoadingScreen() const
@@ -97,25 +89,29 @@ public:
 	/** 返回当前 PreLoadMap 的目标地图名称 */
 	UFUNCTION(BlueprintPure, Category=LoadingScreen)
 	FString GetPreLoadMapName() const { return PreLoadMapName; }
-	
+
+	/** 加载黑屏界面 */
+	UFUNCTION(BlueprintCallable, Category = "Loading Screen")
+	UE_API void LoadBlackScreen();
+
+	/** 加载加载界面 */
+	UFUNCTION(BlueprintCallable, Category = "Loading Screen")
+	UE_API void LoadLoadingScreen();
+
+	/** 准备隐藏黑屏界面 */
+	UFUNCTION(BlueprintCallable, Category = "Loading Screen")
+	UE_API void PrepareHideBlackScreen();
+
+	/** 准备隐藏加载界面 */
+	UFUNCTION(BlueprintCallable, Category = "Loading Screen")
+	UE_API void PrepareHideLoadingScreen();
+
 private:
 	UE_API void HandlePreLoadMap(const FWorldContext& WorldContext, const FString& MapName);
 	UE_API void HandlePostLoadMap(UWorld* World);
 
 	/** 黑屏界面或加载界面是否处于缓动中 */
 	bool IsAnyScreenFading() const;
-
-	/** 加载黑屏界面 */
-	UE_API void LoadBlackScreen();
-
-	/** 加载加载界面 */
-	UE_API void LoadLoadingScreen();
-
-	/** 准备隐藏黑屏界面 */
-	UE_API void PrepareHideBlackScreen();
-
-	/** 准备隐藏加载界面 */
-	UE_API void PrepareHideLoadingScreen();
 
 	/** 返回系统/引擎条件是否需要黑屏。 */
 	UE_API bool CheckForSystemNeedBlackScreen();
@@ -238,6 +234,9 @@ private:
 	/** 距离下次输出加载界面保持原因的日志还有多少秒 */
 	double TimeUntilNextLogHeartbeatSeconds = 0.0;
 
+	/** 加载界面白名单累计检测帧数 */
+	int32 LoadingScreenWhitelistAccumulatedFrames = 0;
+
 	/** 当前 PreLoadMap 的目标地图名称 */
 	FString PreLoadMapName;
 
@@ -249,6 +248,12 @@ private:
 
 	/** 当前加载界面状态 */
 	ELoadScreenState LoadingScreenState = ELoadScreenState::None;
+
+	/** 替代 FTickableGameObject，由 FTSTicker 驱动（暂停时仍运行） */
+	FTSTicker::FDelegateHandle TickerHandle;
+	void StartTicker();
+	void StopTicker();
+	void ManagerTick(float DeltaTime);
 };
 
 #undef UE_API

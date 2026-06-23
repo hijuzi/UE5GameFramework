@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Blueprint/UserWidget.h"
+#include "Containers/Ticker.h"
 
 #include "BlackScreenUserWidget.generated.h"
 
@@ -72,9 +73,9 @@ public:
 protected:
 	//~ UUserWidget interface
 	virtual void NativeConstruct() override;
+	virtual void NativeDestruct() override;
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
-	virtual void NativeTick(const FGeometry& MyGeometry, float InDeltaTime) override;
 
 	/** 加载动画完成时调用，蓝图可重写 */
 	UFUNCTION(BlueprintNativeEvent, Category = "Black Screen|Animation")
@@ -97,8 +98,16 @@ private:
 	EFadeState FadeState = EFadeState::None;
 	float FadeElapsed = 0.0f;
 
+	/** 替代 NativeTick，由 FTSTicker 驱动（暂停时仍运行） */
+	void CustomTick(float InDeltaTime);
+
 	/** Tick 中驱动自身渐入渐出动画 */
 	void TickSelfFade(float InDeltaTime);
 
 	static float ApplyEasing(float Alpha, EBlackScreenFadeEasing Easing);
+
+	FTSTicker::FDelegateHandle TickerHandle;
+
+	void StartTicker();
+	void StopTicker();
 };
