@@ -46,8 +46,18 @@ protected:
 	 * @param bWaitForDeactivation 是否等待 Widget 反激活后再继续流程（MainScreen 为 false，其余为 true） */
 	void TryPushWidgetToLayer(FControlFlowNodeRef SubFlow, const TSoftClassPtr<UCommonActivatableWidget>& ScreenClass, bool bWaitForDeactivation);
 
-	/** Flow Step: 等待黑屏/加载界面隐藏后再继续 */
-	void FlowStep_WaitForAnyScreenHidden(FControlFlowNodeRef SubFlow);
+	/** BeginPlay 时检查是否有界面正在显示，若无则直接启动 Experience，否则注册监听等待隐藏后再启动 */
+	void WaitForScreensHiddenThenStartExperience();
+
+	/** BeginPlay 等待回调：任意屏幕可见性变化时触发 */
+	UFUNCTION()
+	void OnBeginPlayWaitScreenHidden(bool bIsVisible);
+
+	/** 反注册 BeginPlay 等待屏幕隐藏的委托绑定 */
+	void UnregisterBeginPlayWaitScreenEvents();
+
+	/** 注册 BeginPlay 等待屏幕隐藏的委托绑定 */
+	void RegisterBeginPlayWaitScreenEvents();
 
 	/** Flow Step: 尝试显示着色器编译界面 */
 	void FlowStep_TryShowCompilingShadersScreen(FControlFlowNodeRef SubFlow) { TryPushWidgetToLayer(SubFlow, CompilingShadersScreenClass, true); }
@@ -59,6 +69,9 @@ protected:
 	/** 查询 WorldSettings，返回该关卡是否使用 Loading Screen */
 	bool ShouldUseLoadingScreen() const;
 
+	/** 获取 LoadingScreenManager 子系统，可能返回 nullptr */
+	class ULoadingScreenManager* GetLoadingScreenManager() const;
+
 	/** 是否应该显示 Loading Screen */
 	bool bShouldShowLoadingScreen = true;
 
@@ -67,6 +80,16 @@ protected:
 
 	/** 正在进行的 Press Start 界面任务 */
 	FControlFlowNodePtr InProgressPressStartScreen;
+
+	// ---- BeginPlay 等待屏幕隐藏状态 ----
+	/** BeginPlay 等待期间 LoadingScreen 可见性委托 Handle */
+	FDelegateHandle BeginPlayWait_LSHandle;
+
+	/** BeginPlay 等待期间 BlackScreen 可见性委托 Handle */
+	FDelegateHandle BeginPlayWait_BSHandle;
+
+	/** BeginPlay 等待是否已完成（防重入） */
+	bool bBeginPlayWaitCompleted = false;
 
 	/** 着色器编译界面类（从 SVLoginExperienceDefinition 读取） */
 	TSoftClassPtr<UCommonActivatableWidget> CompilingShadersScreenClass;
