@@ -8,6 +8,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+# 修复 GitHub Actions Windows runner 编码问题 (cp1252 → utf-8)
+sys.stdout.reconfigure(encoding="utf-8")
+
 
 def build():
     """执行 PyInstaller 打包命令"""

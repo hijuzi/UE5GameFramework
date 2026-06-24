@@ -420,14 +420,14 @@ class WorkflowTab(QWidget):
 
         # ---- PSO 覆盖范围可视化面板（步骤详情下方） ----
         self._pso_coverage_panel = QGroupBox("PSO 覆盖范围")
-        self._pso_coverage_panel.setFixedHeight(260)
+        self._pso_coverage_panel.setFixedHeight(240)
         self._pso_coverage_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._pso_coverage_panel.setStyleSheet("""
             QGroupBox {
                 border: 1px solid #3D3D3D;
                 border-radius: 6px;
                 margin-top: 8px;
-                padding-top: 14px;
+                padding-top: 12px;
                 color: #888888;
                 font-weight: bold;
             }
@@ -795,7 +795,7 @@ class WorkflowTab(QWidget):
                 border: 1px solid {border_color};
                 border-radius: 6px;
                 margin-top: 8px;
-                padding-top: 14px;
+                padding-top: 12px;
                 color: {grade_color};
                 font-weight: bold;
             }}

@@ -36,8 +36,8 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self):
         self.setWindowTitle(f"UE5 PSOPackager  v{__version__}")
-        self.resize(1550, 940)
-        self.setMinimumSize(1200, 760)
+        self.resize(1300, 940)
+        self.setMinimumSize(1100, 760)
 
     def _setup_menu(self):
         menu_bar = self.menuBar()
