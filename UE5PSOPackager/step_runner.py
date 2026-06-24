@@ -27,7 +27,7 @@ PSO_REQUIRED_CONFIGS = {
             ("r.ShaderPipelineCache.Enabled", "1", "启用 Shader Pipeline Cache"),
             ("r.ShaderPipelineCache.LogPSO", "1", "记录 PSO"),
             ("r.ShaderPipelineCache.SaveBoundPSOLog", "1", "保存绑定 PSO 日志"),
-            ("r.ShaderPipelineCache.BackgroundBatchSize", None, "后台批处理大小"),
+            ("r.ShaderPipelineCache.BackgroundBatchSize", "1", "后台批处理大小"),
         ],
         "DevOptions.Shaders": [
             ("NeedsShaderStableKeys", "true", "启用 Shader 稳定键（Cook 时生成 .shk）"),
@@ -39,7 +39,7 @@ PSO_REQUIRED_CONFIGS = {
             ("bSharedMaterialNativeLibraries", "True", "共享材质 Native Shader 库（生成 .shk）"),
         ],
         "ShaderPipelineCache.CacheFile": [
-            ("GameVersion", None, "PSO 缓存版本号"),
+            ("GameVersion", "1", "PSO 缓存版本号"),
         ],
     },
 }
@@ -78,7 +78,7 @@ class StepRunner(QObject):
         self._current_process: Optional[subprocess.Popen] = None
         self._game_process: Optional[subprocess.Popen] = None   # Step 3 启动的游戏进程
         self._game_exe_path: Optional[str] = None               # 游戏 exe 路径
-        self._step_details: list[str] = []                      # 当前步骤执行详情项
+        self._step_details: list[tuple[str, str]] = []           # 当前步骤详情项: [(文本, 级别)]  级别: ok/error/warning/info
         self._editor_close_response: Optional[bool] = None      # 编辑器关闭对话框响应
         self._editor_close_event: Optional[threading.Event] = None
         self._ini_fix_response: Optional[bool] = None          # INI 修复对话框响应
@@ -629,12 +629,32 @@ class StepRunner(QObject):
             return self._project.name
         return ""
 
-    def _add_step_detail(self, line: str):
-        """向当前步骤添加一条详情（显示在结果卡片中）"""
-        self._step_details.append(line)
+    def _add_step_detail(self, line: str, level: str = ""):
+        """向当前步骤添加一条详情（显示在结果卡片中）
+        level 留空时自动从行首 emoji 推断: ✓→ok  ✗→error  ⚠→warning  其他→info
+        """
+        if not level:
+            stripped = line.strip()
+            if stripped.startswith("✓"):
+                level = "ok"
+            elif stripped.startswith("✗") or stripped.startswith("✕"):
+                level = "error"
+            elif stripped.startswith("⚠"):
+                level = "warning"
+            else:
+                level = "info"
+        self._step_details.append((line, level))
+
+    # 详情颜色映射
+    DETAIL_COLORS = {
+        "ok": "#4ECB71",       # 绿色 — 正确
+        "error": "#E0556A",    # 红色 — 错误
+        "warning": "#FFB74D",  # 橙色 — 警告
+        "info": "#AAAAAA",     # 灰色 — 一般信息
+    }
 
     def _build_step_result(self, step_index: int, ok: bool, elapsed: float) -> tuple[str, str]:
-        """根据步骤索引和完成状态，构建 (结果摘要, 详情文本)"""
+        """根据步骤索引和完成状态，构建 (结果摘要, 详情文本) — 详情含 HTML 颜色"""
         proj = self._project
         elapsed_str = self._format_elapsed(elapsed)
         status_str = "成功" if ok else "失败"
@@ -654,9 +674,14 @@ class StepRunner(QObject):
 
         summary = summaries.get(step_index, f"步骤 {step_index} {status_str}  ({elapsed_str})")
 
-        # 详情：每项前缀 ●
-        detail_items = [f"  ●  {line}" for line in self._step_details]
-        details = "\n".join(detail_items)
+        # 详情 HTML：每行按级别着色
+        detail_parts: list[str] = []
+        for line, level in self._step_details:
+            color = self.DETAIL_COLORS.get(level, "#AAAAAA")
+            detail_parts.append(
+                f"<span style='color:{color};'>  ●  {line}</span>"
+            )
+        details = "<br>".join(detail_parts)
 
         return summary, details
 

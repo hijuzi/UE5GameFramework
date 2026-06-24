@@ -144,7 +144,7 @@ class StepResultCard(QFrame):
         self.setStyleSheet(self._card_style(border))
 
     def set_result(self, text: str):
-        """设置结果文本 — 第一行为摘要，后续为详情"""
+        """设置结果文本 — 第一行为摘要，后续为详情（支持 HTML 颜色）"""
         self._result_text = text
         lines = text.strip().split("\n")
         summary = lines[0].strip() if lines else ""
@@ -161,10 +161,15 @@ class StepResultCard(QFrame):
             f"color: {color}; font-size: 12px; padding-left: 26px; padding-top: 4px; font-weight: bold;"
         )
 
-        # 详情
+        # 详情（支持 HTML 颜色标记）
         if details:
             self._detail_lines = details
-            self._lbl_details.setText("\n".join(details))
+            detail_html = "<br>".join(details)
+            self._lbl_details.setTextFormat(Qt.TextFormat.RichText)
+            self._lbl_details.setText(detail_html)
+            self._lbl_details.setStyleSheet(
+                "color: #AAAAAA; font-size: 11px; line-height: 1.8;"
+            )
             self._btn_toggle.setVisible(True)
             # 默认展开详情
             self._detail_expanded = True
