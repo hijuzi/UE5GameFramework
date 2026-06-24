@@ -255,6 +255,51 @@ class StepRunner(QObject):
         self._terminate_game_process()
         self._terminate_game_by_name()
 
+    def _terminate_lingering_automation_tool(self):
+        """
+        终止残留的 AutomationTool 进程，解决「A conflicting instance of
+        AutomationTool is already running」错误。
+        """
+        try:
+            result = subprocess.run(
+                [
+                    'powershell', '-NoProfile', '-Command',
+                    'Get-CimInstance Win32_Process | '
+                    'Where-Object { $_.CommandLine -like "*AutomationTool*" } | '
+                    'ForEach-Object { Write-Host $_.ProcessId $_.Name }'
+                ],
+                capture_output=True, text=True, timeout=15
+            )
+
+            if result.returncode != 0:
+                return
+
+            lines = result.stdout.strip().splitlines()
+            if not lines or (len(lines) == 1 and not lines[0].strip()):
+                return
+
+            for line in lines:
+                parts = line.strip().split()
+                if len(parts) >= 2:
+                    pid, name = parts[0], parts[1]
+                    self._log("INFO",
+                        f"发现残留 AutomationTool 宿主进程: {name} (PID: {pid})，正在终止...")
+                    try:
+                        subprocess.run(
+                            ['taskkill', '/F', '/PID', pid],
+                            capture_output=True, text=True, timeout=10
+                        )
+                        self._log("SUCCESS",
+                            f"已终止残留 AutomationTool 进程 (PID: {pid})")
+                    except Exception as e:
+                        self._log("WARNING", f"终止进程 {pid} 失败: {e}")
+
+            # 等待进程真正退出、释放 mutex
+            import time
+            time.sleep(1)
+        except Exception as e:
+            self._log("WARNING", f"检查残留 AutomationTool 进程时出错: {e}")
+
     # ---- 编辑器进程 / 安全清理 ----
 
     def on_editor_close_response(self, should_close: bool):
@@ -1687,6 +1732,8 @@ class StepRunner(QObject):
 
         # 打包前确保之前启动的游戏进程已关闭，防止 exe 文件被占用
         self._ensure_game_closed()
+        # 同时清理残留的 AutomationTool 进程，防止 mutex 冲突
+        self._terminate_lingering_automation_tool()
 
         uproject = self._project.uproject_file
         output_dir = self._project.output_dir
@@ -1716,7 +1763,18 @@ class StepRunner(QObject):
         self._log("INFO", f"  项目: {self._project.name}")
         self._log("INFO", f"  输出: {output_dir}")
 
-        ok, _ = self._run_cmd(cmd)
+        ok, output = self._run_cmd(cmd)
+
+        # 如果因为「conflicting instance」失败，自动杀进程后重试一次
+        if not ok and output and "already running" in output:
+            self._log("WARNING", "检测到 AutomationTool 残留进程冲突，正在清理后自动重试...")
+            self._terminate_lingering_automation_tool()
+            # 额外等待以确保 mutex 完全释放
+            import time
+            time.sleep(2)
+            self._log("INFO", "重试打包...")
+            ok, output = self._run_cmd(cmd)
+
         if ok:
             self._log("SUCCESS", f"{label} 完成 ✓")
         else:
