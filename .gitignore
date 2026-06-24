@@ -33,6 +33,7 @@ Windows/
 
 # Ignored content folders
 GameFrameworkDev/Content/Orasot_Bundle/
+GameFrameworkDev/PSOCache/
 
 # --------------------------------------------
 # Platform Specific
@@ -63,3 +64,10 @@ Desktop.ini
 *.obj
 *.pyc
 __pycache__/
+
+# --------------------------------------------
+# UE5PSOPackager - 仅忽略构建产物，保留源码
+# --------------------------------------------
+UE5PSOPackager/dist/
+UE5PSOPackager/build/
+UE5PSOPackager/*.spec

@@ -157,6 +157,9 @@ private:
 	/** 平滑进度累计时间，用于限制进度增速不超过 MinimumLoadingScreenDisplayTime 的线性进度 */
 	float SmoothedProgressTime = 0.0f;
 
+	/** 标记加载是否已完成 */
+	bool bLoadingCompleted = false;
+
 	//~ 配置解析
 
 	/**

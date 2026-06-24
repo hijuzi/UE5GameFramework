@@ -4,6 +4,8 @@
 #include "CommonLoadingScreenSettings.h"
 
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/SOverlay.h"
+#include "Styling/CoreStyle.h"
 
 UBlackScreenUserWidget::UBlackScreenUserWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -25,21 +27,38 @@ void UBlackScreenUserWidget::NativeConstruct()
 
 TSharedRef<SWidget> UBlackScreenUserWidget::RebuildWidget()
 {
-	RootBorder = SNew(SBorder)
-		.BorderBackgroundColor(FLinearColor::Black)
-		.Padding(0);
+	RootOverlay = SNew(SOverlay)
+		// --- 遮罩层：黑屏，带渐入渐出动画（Slot 0，下层） ---
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		[
+			SAssignNew(MaskOverlay, SOverlay)
+			+ SOverlay::Slot()
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Fill)
+			[
+				SAssignNew(MaskBorder, SBorder)
+				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+				.BorderBackgroundColor(FLinearColor::Black)
+				.Padding(0)
+			]
+		]
+		// --- 内容层：蓝图派生内容（Slot 1，上层） ---
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		[
+			SAssignNew(ContentOverlay, SOverlay)
+			+ SOverlay::Slot()
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Fill)
+			[
+				WidgetTree ? Super::RebuildWidget() : SNullWidget::NullWidget
+			]
+		];
 
-	// 初始状态：完全透明，等待 PlayLoadAnimation 调用
-	SetRenderOpacity(0.0f);
-
-	// 允许 Blueprint 派生的 WidgetTree 作为 SBorder 的子内容嵌入
-	if (WidgetTree)
-	{
-		TSharedRef<SWidget> Content = Super::RebuildWidget();
-		RootBorder->SetContent(Content);
-	}
-
-	return RootBorder.ToSharedRef();
+	return RootOverlay.ToSharedRef();
 }
 
 void UBlackScreenUserWidget::NativeDestruct()
@@ -51,12 +70,15 @@ void UBlackScreenUserWidget::NativeDestruct()
 void UBlackScreenUserWidget::ReleaseSlateResources(bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
-	RootBorder.Reset();
+	RootOverlay.Reset();
+	MaskOverlay.Reset();
+	MaskBorder.Reset();
+	ContentOverlay.Reset();
 }
 
 bool UBlackScreenUserWidget::IsFading() const
 {
-	return FadeState != EFadeState::None;
+	return FadeEasing != EFadeEasing::None;
 }
 
 bool UBlackScreenUserWidget::ShouldShowLoadingScreen_Implementation() const
@@ -66,33 +88,33 @@ bool UBlackScreenUserWidget::ShouldShowLoadingScreen_Implementation() const
 
 void UBlackScreenUserWidget::PlayLoadAnimation_Implementation()
 {
-	if (FadeState == EFadeState::FadingIn)
+	if (FadeEasing == EFadeEasing::EaseIn)
 	{
 		return; // 已在淡入中
 	}
 
-	FadeState = EFadeState::FadingIn;
+	FadeEasing = EFadeEasing::EaseIn;
 	FadeElapsed = 0.0f;
-	SetRenderOpacity(0.0f);
+	MaskOverlay->SetRenderOpacity(0.0f);
 	SetVisibility(ESlateVisibility::Visible);
 }
 
 void UBlackScreenUserWidget::PlayUnloadAnimation_Implementation()
 {
-	if (FadeState == EFadeState::FadingOut)
+	if (FadeEasing == EFadeEasing::EaseOut)
 	{
 		return; // 已在淡出中
 	}
 
-	FadeState = EFadeState::FadingOut;
+	FadeEasing = EFadeEasing::EaseOut;
 	FadeElapsed = 0.0f;
-	SetRenderOpacity(1.0f);
+	MaskOverlay->SetRenderOpacity(1.0f);
 	SetVisibility(ESlateVisibility::Visible);
 }
 
 void UBlackScreenUserWidget::TickSelfFade(float InDeltaTime)
 {
-	const float Duration = (FadeState == EFadeState::FadingIn) ? FadeInDuration : FadeOutDuration;
+	const float Duration = (FadeEasing == EFadeEasing::EaseIn) ? FadeInDuration : FadeOutDuration;
 	FadeElapsed += InDeltaTime;
 
 	if (Duration > 0.0f)
@@ -100,17 +122,23 @@ void UBlackScreenUserWidget::TickSelfFade(float InDeltaTime)
 		float Alpha = FMath::Clamp(FadeElapsed / Duration, 0.0f, 1.0f);
 		Alpha = ApplyEasing(Alpha, FadeEasing);
 
-		SetRenderOpacity((FadeState == EFadeState::FadingIn) ? Alpha : (1.0f - Alpha));
+		const float Opacity = (FadeEasing == EFadeEasing::EaseIn) ? Alpha : (1.0f - Alpha);
+		MaskOverlay->SetRenderOpacity(Opacity);
+
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Cyan, FString::Printf(TEXT("[BlackScreen] Opacity: %.3f | Easing: %s"), Opacity, FadeEasing == EFadeEasing::EaseIn ? TEXT("EaseIn") : TEXT("EaseOut")));
+		}
 	}
 
 	if (FadeElapsed >= Duration)
 	{
-		const EFadeState CompletedState = FadeState;
-		FadeState = EFadeState::None;
+		const EFadeEasing CompletedState = FadeEasing;
+		FadeEasing = EFadeEasing::None;
 
 		// Ticker 保持运行（Widget 仍显示中），只是停止动画驱动
 
-		if (CompletedState == EFadeState::FadingIn)
+		if (CompletedState == EFadeEasing::EaseIn)
 		{
 			OnLoadAnimationFinished();
 		}
@@ -164,9 +192,9 @@ float UBlackScreenUserWidget::ApplyEasing(float Alpha, EFadeEasing Easing)
 	case EFadeEasing::None:
 		return Alpha;
 	case EFadeEasing::EaseIn:
-		return Alpha * Alpha;
+		return Alpha;
 	case EFadeEasing::EaseOut:
-		return Alpha * (2.0f - Alpha);
+		return Alpha;
 	default:
 		return Alpha;
 	}
@@ -174,12 +202,12 @@ float UBlackScreenUserWidget::ApplyEasing(float Alpha, EFadeEasing Easing)
 
 void UBlackScreenUserWidget::OnLoadAnimationFinished_Implementation()
 {
-	SetRenderOpacity(1.0f);
+	MaskOverlay->SetRenderOpacity(1.0f);
 	OnLoadAnimationCompleted.Broadcast();
 }
 
 void UBlackScreenUserWidget::OnUnloadAnimationFinished_Implementation()
 {
-	SetRenderOpacity(0.0f);
+	MaskOverlay->SetRenderOpacity(0.0f);
 	OnUnloadAnimationCompleted.Broadcast();
 }

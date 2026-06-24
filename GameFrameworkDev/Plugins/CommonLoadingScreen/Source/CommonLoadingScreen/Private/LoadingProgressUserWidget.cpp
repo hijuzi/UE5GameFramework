@@ -66,6 +66,7 @@ void ULoadingProgressUserWidget::PrepareLoadAnimation()
 {
 	MaskFadeElapsed = 0.0f;
 	SmoothedProgressTime = 0.0f;
+	bLoadingCompleted = false;
 
 	if (MaskOverlay.IsValid())
 	{
@@ -316,7 +317,14 @@ void ULoadingProgressUserWidget::SetProgress_Implementation(float InProgress)
 
 float ULoadingProgressUserWidget::GetProgress() const
 {
-	return CurrentProgress;
+	if (bLoadingCompleted)
+	{
+		return 1.0f;
+	}
+	else
+	{
+		return CurrentProgress;
+	}
 }
 
 void ULoadingProgressUserWidget::SetBackgroundBrush(const FSlateBrush& InBrush)
@@ -346,6 +354,10 @@ void ULoadingProgressUserWidget::TickProgressUpdate(float InDeltaTime)
 	{
 		if (ULevelLoadingProgressSubsystem* Subsys = GI->GetSubsystem<ULevelLoadingProgressSubsystem>())
 		{
+			if (bLoadingCompleted)
+			{
+				return;
+			}
 			const float RawProgress = Subsys->GetPreciseLoadingProgress();
 
 			// 时间平滑上限：进度不能超过按最小显示时长线性推进的上限
@@ -358,6 +370,7 @@ void ULoadingProgressUserWidget::TickProgressUpdate(float InDeltaTime)
 
 			if (ClampedProgress >= 100.0f)
 			{
+				bLoadingCompleted = true;
 				if (ULoadingScreenManager* Manager = GI->GetSubsystem<ULoadingScreenManager>())
 				{
 					Manager->PrepareHideLoadingScreen();
@@ -420,7 +433,13 @@ void ULoadingProgressUserWidget::TickMaskFade(float InDeltaTime)
 
 		if (MaskOverlay.IsValid())
 		{
-			MaskOverlay->SetRenderOpacity((MaskFadeState == EFadeEasing::EaseIn) ? Alpha : (1.0f - Alpha));
+			const float Opacity = (MaskFadeState == EFadeEasing::EaseIn) ? Alpha : (1.0f - Alpha);
+			MaskOverlay->SetRenderOpacity(Opacity);
+
+			if (GEngine)
+			{
+				GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Yellow, FString::Printf(TEXT("[LoadingScreen] MaskOpacity: %.3f | Easing: %s"), Opacity, MaskFadeState == EFadeEasing::EaseIn ? TEXT("EaseIn") : TEXT("EaseOut")));
+			}
 		}
 	}
 
@@ -454,14 +473,23 @@ void ULoadingProgressUserWidget::PlayUnloadAnimation_Implementation()
 
 void ULoadingProgressUserWidget::PlayLoadAnimation_Implementation()
 {
-	if (MaskFadeState == EFadeEasing::EaseOut)
+	if (LoadingScreenContentType == ELoadingScreenContentType::Video)
 	{
-		return;
+		PrepareUnloadAnimation();
+		GetMoviePlayer()->PlayMovie();
 	}
+	else
+	{
+		if (MaskFadeState == EFadeEasing::EaseOut)
+		{
+			return;
+		}
 
-	MaskFadeState = EFadeEasing::EaseOut;
-	// 加载动画准备
-	PrepareLoadAnimation();
+		MaskFadeState = EFadeEasing::EaseOut;
+		// 加载动画准备
+		PrepareLoadAnimation();
+	}
+	
 }
 
 bool ULoadingProgressUserWidget::IsFading() const
@@ -476,9 +504,9 @@ float ULoadingProgressUserWidget::ApplyEasing(float Alpha, EFadeEasing Easing)
 	case EFadeEasing::None:
 		return Alpha;
 	case EFadeEasing::EaseIn:
-		return Alpha * Alpha;
+		return Alpha;
 	case EFadeEasing::EaseOut:
-		return Alpha * (2.0f - Alpha);
+		return Alpha;
 	default:
 		return Alpha;
 	}
@@ -499,6 +527,9 @@ void ULoadingProgressUserWidget::OnLoadAnimationFinished_Implementation()
 	{
 		MaskOverlay->SetRenderOpacity(0.0f);
 	}
+	if (LoadingScreenContentType == ELoadingScreenContentType::Video)
+	{
+		GetMoviePlayer()->PlayMovie();
+	}
 	OnLoadAnimationCompleted.Broadcast();
-	GetMoviePlayer()->PlayMovie();
 }

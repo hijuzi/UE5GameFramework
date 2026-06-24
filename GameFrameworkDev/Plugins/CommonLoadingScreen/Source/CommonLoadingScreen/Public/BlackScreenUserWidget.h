@@ -9,6 +9,7 @@
 #include "BlackScreenUserWidget.generated.h"
 
 class SBorder;
+class SOverlay;
 
 /** 黑屏动画完成时广播 */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackScreenAnimationCompleted);
@@ -17,8 +18,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackScreenAnimationCompleted);
  * 黑屏控件的基类。
  *
  * 核心结构：
- *   SBorder（黑色背景，撑满全屏）
- *     └── 子控件区域（蓝图派生时可在此添加 Logo、加载提示等）
+ *   SOverlay（根节点）
+ *     └── SOverlay（全局展开，遮罩画板，带渐入渐出动画）
+ *           └── SBorder（全局展开，黑屏）
+ *     ├── SOverlay（内容层，全局展开）
+ *           └── WidgetTree 内容（蓝图子类在此添加自定义控件）
  *
  * 自动管理 RenderOpacity 的缓动动画：
  *   - PlayLoadAnimation()   ：淡入显示黑屏，完成后触发 OnLoadAnimationCompleted
@@ -32,8 +36,8 @@ class COMMONLOADINGSCREEN_API UBlackScreenUserWidget : public UUserWidget
 public:
 	UBlackScreenUserWidget(const FObjectInitializer& ObjectInitializer);
 
-	/** 获取根 SBorder，供 C++ 或蓝图向其中添加子控件 */
-	TSharedPtr<SBorder> GetRootBorder() const { return RootBorder; }
+	/** 获取内容层 SOverlay，供 C++ 或蓝图向其中添加子控件 */
+	TSharedPtr<SOverlay> GetContentOverlay() const { return ContentOverlay; }
 
 	//~ 动画
 	/** 播放加载动画（淡入显示黑屏），蓝图可重写 */
@@ -76,16 +80,23 @@ protected:
 	void OnUnloadAnimationFinished();
 
 private:
-	/** 根 SBorder，黑色背景全屏覆盖 */
-	TSharedPtr<SBorder> RootBorder;
+	/** 根 SOverlay */
+	TSharedPtr<SOverlay> RootOverlay;
+
+	/** 遮罩层（全局展开），带渐入渐出动画 */
+	TSharedPtr<SOverlay> MaskOverlay;
+
+	/** 遮罩黑屏 */
+	TSharedPtr<SBorder> MaskBorder;
+
+	/** 内容层（全局展开），承载 WidgetTree 蓝图内容 */
+	TSharedPtr<SOverlay> ContentOverlay;
 
 	/** 缓存的动画配置，在 NativeConstruct 中从 UCommonLoadingScreenSettings 读取 */
 	float FadeInDuration = 0.3f;
 	float FadeOutDuration = 0.3f;
 	EFadeEasing FadeEasing = EFadeEasing::None;
 
-	enum class EFadeState : uint8 { None, FadingIn, FadingOut };
-	EFadeState FadeState = EFadeState::None;
 	float FadeElapsed = 0.0f;
 
 	/** 替代 NativeTick，由 FTSTicker 驱动（暂停时仍运行） */

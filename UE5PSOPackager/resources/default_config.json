@@ -1,0 +1,24 @@
+{
+  "ue5_versions": {
+    "5.6": {
+      "install_dir": "",
+      "editor_cmd_path": "",
+      "uat_bat_path": ""
+    }
+  },
+  "projects": [
+    {
+      "name": "ExampleProject",
+      "ue5_version": "5.6",
+      "project_dir": "",
+      "uproject_file": "",
+      "shader_formats": ["PCD3D_SM6"],
+      "target_platform": "Win64",
+      "output_dir": "",
+      "pso_cache_work_dir": "",
+      "shk_source_relative": "Saved\\Cooked\\Windows\\{project_name}\\Metadata\\PipelineCaches",
+      "rec_source_relative": "Saved\\CollectedPSOs",
+      "spc_target_relative": "Build\\Windows\\PipelineCaches"
+    }
+  ]
+}

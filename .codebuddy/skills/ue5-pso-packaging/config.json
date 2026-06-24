@@ -1,0 +1,33 @@
+{
+  "_comment": "=== UE5 PSO 打包技能 - 路径配置文件 ===",
+  "_usage": "本文件是所有路径的唯一来源。技能执行时任何路径操作必须从此文件读取，禁止硬编码。",
+
+  "ue5": {
+    "_comment": "UE5 引擎安装及命令行工具路径",
+    "install_dir": "E:\\EpicGames\\UE_5.6",
+    "editor_cmd_path": "E:\\EpicGames\\UE_5.6\\Engine\\Binaries\\Win64\\UnrealEditor-Cmd.exe",
+    "uat_bat_path": "E:\\EpicGames\\UE_5.6\\Engine\\Build\\BatchFiles\\RunUAT.bat"
+  },
+
+  "project": {
+    "_comment": "UE5 项目路径及元数据",
+    "project_dir": "E:\\UE_Project\\UE5GameFramework\\GameFrameworkDev",
+    "uproject_file": "E:\\UE_Project\\UE5GameFramework\\GameFrameworkDev\\GameFrameworkDev.uproject",
+    "project_name": "GameFrameworkDev",
+    "shader_formats": ["PCD3D_SM6"],
+    "target_platform": "Win64"
+  },
+
+  "package": {
+    "_comment": "打包输出目录",
+    "output_dir": "E:\\UE_Project\\UE5GameFramework\\GameFrameworkDev\\Package"
+  },
+
+  "pso": {
+    "_comment": "PSO 缓存工作目录及相关路径",
+    "cache_work_dir": "E:\\UE_Project\\UE5GameFramework\\GameFrameworkDev\\PSOCache",
+    "shk_source_relative": "Saved\\Cooked\\Windows\\GameFrameworkDev\\Metadata\\PipelineCaches",
+    "rec_source_relative": "Saved\\CollectedPSOs",
+    "spc_target_relative": "Build\\Windows\\PipelineCaches"
+  }
+}
