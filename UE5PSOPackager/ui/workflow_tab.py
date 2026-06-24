@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QListWidget,
     QListWidgetItem, QPushButton, QProgressBar,
     QLabel, QGroupBox, QSplitter, QScrollArea, QFrame, QSizePolicy,
-    QMessageBox,
+    QMessageBox, QDialog, QDialogButtonBox,
 )
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QFont
@@ -549,6 +549,7 @@ class WorkflowTab(QWidget):
         self._runner.step9_game_running_signal.connect(self._on_step9_game_running)
         self._runner.pso_coverage_data.connect(self._on_pso_coverage_data)
         self._runner.ask_close_editor.connect(self._on_ask_close_editor)
+        self._runner.ask_ini_fix.connect(self._on_ask_ini_fix)
         self._runner.all_done_signal.connect(self._on_all_done)
 
     # ---- 执行控制 ----
@@ -854,3 +855,159 @@ class WorkflowTab(QWidget):
         )
         should_close = (reply == QMessageBox.StandardButton.Yes)
         self._runner.on_editor_close_response(should_close)
+
+    def _on_ask_ini_fix(self, summary: str, items: list):
+        """Step 1 配置检查未通过，弹窗询问是否自动写入缺失的 INI 配置"""
+        dlg = _PSOIniFixDialog(summary, items, self)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            self._runner.on_ini_fix_response(True)
+        else:
+            self._runner.on_ini_fix_response(False)
+
+
+class _PSOIniFixDialog(QDialog):
+    """PSO INI 配置修复确认弹窗"""
+
+    TYPE_ICONS = {
+        "missing": "❌ 缺失",
+        "wrong": "⚠️ 值不匹配",
+        "nosection": "📂 节不存在",
+    }
+
+    def __init__(self, summary: str, items: list[dict], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("PSO 配置检查未通过")
+        self.resize(600, 460)
+        self.setMinimumSize(480, 320)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowTitleHint
+        )
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1E1E1E;
+                color: #CCCCCC;
+            }
+            QLabel {
+                color: #CCCCCC;
+            }
+            QScrollArea {
+                background-color: #252525;
+                border: 1px solid #3D3D3D;
+                border-radius: 4px;
+            }
+            QPushButton {
+                background-color: #388E3C;
+                color: white;
+                border: none;
+                padding: 8px 20px;
+                border-radius: 4px;
+                font-weight: bold;
+                min-width: 90px;
+            }
+            QPushButton:hover {
+                background-color: #4CAF50;
+            }
+            QPushButton#skipBtn {
+                background-color: #555555;
+                color: #AAAAAA;
+            }
+            QPushButton#skipBtn:hover {
+                background-color: #666666;
+                color: #CCCCCC;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        layout.setSpacing(10)
+
+        # 标题
+        title = QLabel("PSO 配置检查未通过")
+        title.setStyleSheet("font-size: 15px; font-weight: bold; color: #E0556A;")
+        layout.addWidget(title)
+
+        # 摘要
+        lbl_summary = QLabel(summary)
+        lbl_summary.setStyleSheet("color: #AAAAAA; font-size: 12px;")
+        layout.addWidget(lbl_summary)
+
+        # 分隔线
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet("border-color: #3D3D3D; max-height: 1px;")
+        layout.addWidget(sep)
+
+        # 配置项列表
+        lbl_list_title = QLabel(f"以下 {len(items)} 项配置需要修复：")
+        lbl_list_title.setStyleSheet("color: #CCCCCC; font-size: 12px; font-weight: bold;")
+        layout.addWidget(lbl_list_title)
+
+        # 可滚动配置列表
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        list_widget = QWidget()
+        list_layout = QVBoxLayout(list_widget)
+        list_layout.setContentsMargins(0, 0, 0, 0)
+        list_layout.setSpacing(4)
+
+        # 按文件分组显示
+        by_file: dict[str, list[dict]] = {}
+        for item in items:
+            by_file.setdefault(item["filename"], []).append(item)
+
+        for filename, file_items in by_file.items():
+            # 文件名标签
+            file_lbl = QLabel(f"📄 {filename}")
+            file_lbl.setStyleSheet("color: #4FC3F7; font-size: 12px; font-weight: bold; padding: 2px 0;")
+            list_layout.addWidget(file_lbl)
+
+            for item in file_items:
+                type_icon = self.TYPE_ICONS.get(item.get("type", "missing"), "❓")
+                item_value = item.get("value", "")
+                # 空值显示为「需手动填写」
+                display_value = item_value if item_value else "(需手动填写)"
+
+                if item.get("type") == "wrong":
+                    current_val = item.get('current_value', '?')
+                    suggest_val = display_value
+                    detail = f"      {type_icon}  [{item['section']}] {item['key']}"
+                    detail2 = f"         当前: {current_val}  →  建议: {suggest_val}"
+                    row = QLabel(detail)
+                    row.setStyleSheet("color: #F0C040; font-size: 11px;")
+                    list_layout.addWidget(row)
+                    row2 = QLabel(detail2)
+                    row2.setStyleSheet("color: #888888; font-size: 10px; padding-left: 12px;")
+                    list_layout.addWidget(row2)
+                else:
+                    detail = f"      {type_icon}  [{item['section']}] {item['key']} = {display_value}"
+                    row = QLabel(detail)
+                    row.setStyleSheet("color: #E0556A; font-size: 11px;")
+                    list_layout.addWidget(row)
+
+                desc_lbl = QLabel(f"          {item['description']}")
+                desc_lbl.setStyleSheet("color: #666666; font-size: 10px; padding-left: 12px;")
+                list_layout.addWidget(desc_lbl)
+
+        list_layout.addStretch()
+        scroll.setWidget(list_widget)
+        layout.addWidget(scroll, stretch=1)
+
+        # 按钮区
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+
+        skip_btn = QPushButton("跳过")
+        skip_btn.setObjectName("skipBtn")
+        skip_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(skip_btn)
+
+        fix_btn = QPushButton("写入配置")
+        fix_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(fix_btn)
+
+        layout.addLayout(btn_layout)

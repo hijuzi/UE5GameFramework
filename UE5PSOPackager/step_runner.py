@@ -61,6 +61,7 @@ class StepRunner(QObject):
     step9_game_running_signal = Signal(bool)    # (running) Step 9 游戏进程运行状态
     pso_coverage_data = Signal(dict)            # (data) PSO 覆盖范围结果数据
     ask_close_editor = Signal(str)               # (message) 请求关闭编辑器
+    ask_ini_fix = Signal(str, list)             # (summary, missing_configs) Step1 配置缺失，询问是否写入
     all_done_signal = Signal()                  # 全部步骤完成
 
     LOG_LEVELS = ("INFO", "SUCCESS", "WARNING", "ERROR")
@@ -80,6 +81,8 @@ class StepRunner(QObject):
         self._step_details: list[str] = []                      # 当前步骤执行详情项
         self._editor_close_response: Optional[bool] = None      # 编辑器关闭对话框响应
         self._editor_close_event: Optional[threading.Event] = None
+        self._ini_fix_response: Optional[bool] = None          # INI 修复对话框响应
+        self._ini_fix_event: Optional[threading.Event] = None
 
     # ---- 公共接口 ----
 
@@ -259,6 +262,86 @@ class StepRunner(QObject):
         self._editor_close_response = should_close
         if self._editor_close_event:
             self._editor_close_event.set()
+
+    def on_ini_fix_response(self, should_fix: bool):
+        """UI 回调：用户选择是否写入 INI 配置"""
+        self._ini_fix_response = should_fix
+        if self._ini_fix_event:
+            self._ini_fix_event.set()
+
+    def _write_ini_config(self, fix_items: list[dict]) -> bool:
+        """将缺失/不正确的 PSO 配置写入 INI 文件，返回是否全部成功"""
+        proj_dir = Path(self._project.project_dir)
+        config_dir = proj_dir / "Config"
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        # 按文件名分组
+        by_file: dict[str, list[dict]] = {}
+        for item in fix_items:
+            by_file.setdefault(item["filename"], []).append(item)
+
+        all_ok = True
+
+        for filename, items in by_file.items():
+            ini_path = config_dir / filename
+
+            # 读取现有内容（文件可能不存在）
+            content = ini_path.read_text(encoding="utf-8", errors="replace") if ini_path.exists() else ""
+
+            for item in items:
+                section_name = item["section"]
+                key = item["key"]
+                value = item["value"]
+
+                # 查找 Section 位置
+                section_pattern = re.compile(
+                    rf'^\[{re.escape(section_name)}\]',
+                    re.MULTILINE | re.IGNORECASE
+                )
+                section_match = section_pattern.search(content)
+
+                if section_match:
+                    # Section 存在 — 找出 section 体范围
+                    section_start = section_match.end()
+                    next_section = re.compile(r'^\s*\[', re.MULTILINE)
+                    next_match = next_section.search(content, section_start)
+                    section_end = next_match.start() if next_match else len(content)
+                    section_body = content[section_start:section_end]
+
+                    # 查找 key
+                    key_pattern = re.compile(
+                        rf'^[+\-.]?{re.escape(key)}\s*=\s*.*',
+                        re.MULTILINE | re.IGNORECASE
+                    )
+                    key_match = key_pattern.search(section_body)
+
+                    if key_match:
+                        # 替换已存在的 key 值
+                        old_line = key_match.group(0)
+                        new_line = f"{key}={value}"
+                        full_pos = content.find(old_line, section_start, section_end)
+                        if full_pos >= 0:
+                            content = content[:full_pos] + new_line + content[full_pos + len(old_line):]
+                    else:
+                        # 在 section 末尾插入新 key
+                        insert_pos = section_end
+                        # 确保换行分隔
+                        prefix = "" if content[max(0, insert_pos - 1):insert_pos] == "\n" else "\n"
+                        content = content[:insert_pos] + f"{prefix}{key}={value}" + content[insert_pos:]
+                else:
+                    # Section 不存在 — 追加到文件末尾
+                    if content and not content.endswith("\n"):
+                        content += "\n"
+                    content += f"\n[{section_name}]\n{key}={value}\n"
+
+            try:
+                ini_path.write_text(content, encoding="utf-8")
+                self._log("SUCCESS", f"  已写入 {filename}: {len(items)} 项 PSO 配置")
+            except Exception as e:
+                self._log("ERROR", f"  写入 {filename} 失败: {e}")
+                all_ok = False
+
+        return all_ok
 
     def _is_editor_running(self) -> Optional[str]:
         """检测 UE Editor 是否在运行，返回进程名或 None"""
@@ -598,6 +681,9 @@ class StepRunner(QObject):
         warn_count = 0
         missing_count = 0
 
+        # 收集所有需要修复的配置项
+        fix_items: list[dict] = []
+
         for ini_filename, sections in PSO_REQUIRED_CONFIGS.items():
             ini_path = config_dir / ini_filename
             self._log("INFO", f"检查 {ini_filename}...")
@@ -607,6 +693,19 @@ class StepRunner(QObject):
                 self._log("WARNING", f"  文件不存在: {ini_path}")
                 self._add_step_detail(f"  ⚠ 文件不存在")
                 all_ok = False
+                # 文件不存在：所有该文件的配置项都加入修复列表
+                for section_name, configs in sections.items():
+                    for key, expected_value, description in configs:
+                        fix_items.append({
+                            "filename": ini_filename,
+                            "section": section_name,
+                            "key": key,
+                            "value": expected_value or "",
+                            "description": description,
+                            "type": "missing",
+                        })
+                        checked_count += 1
+                        missing_count += 1
                 continue
 
             content = ini_path.read_text(encoding="utf-8", errors="replace")
@@ -623,6 +722,18 @@ class StepRunner(QObject):
                     self._log("WARNING", f"  未找到 [{section_name}] 节")
                     self._add_step_detail(f"  [{section_name}] 未找到")
                     all_ok = False
+                    # 节不存在：该节所有配置项加入修复列表
+                    for key, expected_value, description in configs:
+                        fix_items.append({
+                            "filename": ini_filename,
+                            "section": section_name,
+                            "key": key,
+                            "value": expected_value or "",
+                            "description": description,
+                            "type": "nosection",
+                        })
+                        checked_count += 1
+                        missing_count += 1
                     continue
 
                 section_content = match.group(1)
@@ -630,7 +741,7 @@ class StepRunner(QObject):
                 for key, expected_value, description in configs:
                     checked_count += 1
                     key_pattern = re.compile(
-                        rf'^[+\-.]?{re.escape(key)}\s*=\s*(.+)$',
+                        rf'^[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
                         re.MULTILINE | re.IGNORECASE
                     )
                     key_match = key_pattern.search(section_content)
@@ -649,20 +760,119 @@ class StepRunner(QObject):
                             self._log("WARNING", f"  {key} = {value}，建议值: {expected_value}  ({description})")
                             self._add_step_detail(f"  ⚠ {key}={value}（建议: {expected_value}）")
                             warn_count += 1
+                            fix_items.append({
+                                "filename": ini_filename,
+                                "section": section_name,
+                                "key": key,
+                                "value": expected_value or "",
+                                "description": description,
+                                "type": "wrong",
+                                "current_value": value,
+                            })
                     else:
                         self._log("ERROR", f"  缺少配置: {key}  ({description})")
                         self._add_step_detail(f"  ✗ {key} 缺失")
                         missing_count += 1
                         all_ok = False
+                        fix_items.append({
+                            "filename": ini_filename,
+                            "section": section_name,
+                            "key": key,
+                            "value": expected_value or "",
+                            "description": description,
+                            "type": "missing",
+                        })
 
         # 汇总
         self._add_step_detail(f"检查项: {checked_count} | 正确: {ok_count} | 警告: {warn_count} | 缺失: {missing_count}")
 
         if all_ok:
             self._log("SUCCESS", "INI PSO 配置检查全部通过 ✓")
-        else:
-            self._log("WARNING", "部分 INI 配置存在问题，请检查")
+            return True
 
+        self._log("WARNING", "部分 INI 配置存在问题，请检查")
+
+        # -- 弹出修复提示（阻塞等待用户响应） --
+        if fix_items:
+            summary = f"发现 {len(fix_items)} 项配置问题"
+            self._ini_fix_event = threading.Event()
+            self._ini_fix_response = None
+            self.ask_ini_fix.emit(summary, fix_items)
+
+            # 等待 UI 线程响应（最多 120 秒）
+            responded = self._ini_fix_event.wait(120)
+
+            if responded and self._ini_fix_response:
+                self._log("INFO", "用户选择写入 PSO INI 配置，正在修复...")
+                written = self._write_ini_config(fix_items)
+                if written:
+                    self._log("SUCCESS", "PSO INI 配置已写入，正在重新验证...")
+                    self._add_step_detail("PSO 配置已自动写入 INI 文件")
+                    # 写入成功后重新检查，通过则继续后续步骤
+                    if self._recheck_ini_after_fix():
+                        self._log("SUCCESS", "INI PSO 配置检查全部通过 ✓（已自动修复）")
+                        return True
+                    else:
+                        self._log("ERROR", "写入后重新检查仍有问题，请手动检查 INI 文件")
+                else:
+                    self._log("ERROR", "写入 PSO INI 配置失败")
+            else:
+                self._log("INFO", "用户跳过 INI 配置修复")
+
+        return False
+
+    def _recheck_ini_after_fix(self) -> bool:
+        """写入 INI 后重新检查配置是否正确，只检查缺失/错误项"""
+        proj_dir = Path(self._project.project_dir)
+        config_dir = proj_dir / "Config"
+        if not config_dir.exists():
+            self._log("ERROR", f"项目 Config 目录不存在: {config_dir}")
+            return False
+
+        all_ok = True
+
+        for ini_filename, sections in PSO_REQUIRED_CONFIGS.items():
+            ini_path = config_dir / ini_filename
+            if not ini_path.exists():
+                self._log("ERROR", f"  {ini_filename} 文件仍不存在")
+                all_ok = False
+                continue
+
+            content = ini_path.read_text(encoding="utf-8", errors="replace")
+
+            for section_name, configs in sections.items():
+                section_pattern = re.compile(
+                    rf'\[{re.escape(section_name)}\](.*?)(?=\[|$)',
+                    re.DOTALL | re.IGNORECASE
+                )
+                match = section_pattern.search(content)
+
+                if not match:
+                    self._log("ERROR", f"  [{section_name}] 节仍不存在")
+                    all_ok = False
+                    continue
+
+                section_content = match.group(1)
+
+                for key, expected_value, description in configs:
+                    key_pattern = re.compile(
+                        rf'^[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
+                        re.MULTILINE | re.IGNORECASE
+                    )
+                    key_match = key_pattern.search(section_content)
+
+                    if not key_match:
+                        self._log("ERROR", f"  {key} 仍缺失 ({description})")
+                        all_ok = False
+                    elif expected_value is not None:
+                        current_val = key_match.group(1).strip()
+                        if current_val != expected_value:
+                            self._log("WARNING",
+                                f"  {key} = {current_val}，建议值: {expected_value} ({description})")
+                            # 值不匹配不算致命错误，仅警告
+
+        if all_ok:
+            self._log("SUCCESS", "重新验证通过，所有必需配置项已就位")
         return all_ok
 
     # ---- Step 2: 首次打包（生成 .shk） ----
