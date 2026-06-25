@@ -1,0 +1,133 @@
+<mxfile host="65bd71144e">
+    <diagram name="材质PSO高覆盖率采集" id="mat-cov">
+        <mxGraphModel dx="930" dy="1030" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="1600" background="#1a1a2e" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="t" value="材质 PSO 高覆盖率采集策略" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=24;fontColor=#00d4ff;fontStyle=1;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="15" width="500" height="40" as="geometry"/>
+                </mxCell>
+                <mxCell id="fm" value="&lt;b&gt;PSO = Pass × VF × LOD × Scalability × MaterialVariant&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1a3e;strokeColor=#bb86fc;fontColor=#bb86fc;fontSize=14;arcSize=12;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="70" width="580" height="32" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1h" value="1. 渲染 Pass（6个）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#e43f5a;fontColor=#e43f5a;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="120" width="180" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p1b" value="BasePass | Shadow(CSM/VSM) | CustomDepth | Translucency | Velocity | DepthOnly" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d1a3d;strokeColor=#9b59b6;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="120" width="400" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2h" value="2. VertexFactory（6类）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#f0a500;fontColor=#f0a500;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="170" width="180" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2b" value="StaticMesh | SkeletalMesh | Landscape | ISM/HISM | SplineMesh | Groom(Hair)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d2e0a;strokeColor=#cca300;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="170" width="480" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p2n" value="⚠ 同一材质不同 VF → 独立 PSO，缺一不可" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d2505;strokeColor=#f0a500;fontColor=#f0a500;fontSize=11;arcSize=8;align=left;spacingLeft=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="205" width="670" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3h" value="3. LOD（4级）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#4fc3f7;fontColor=#4fc3f7;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="245" width="180" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p3b" value="LOD0 (近/Nanite) | LOD1 (中) | LOD2 (远) | LOD3 (最远)  → LOD不同=Shader不同=PSO不同" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#133a4a;strokeColor=#0288d1;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="245" width="480" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4h" value="4. 画质等级" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#66bb6a;fontColor=#66bb6a;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="295" width="180" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p4b" value="Low | Medium | High | Epic  +  AA: TAA/TSR/MSAA/FSR  → 不同Quality = 不同ShaderPermutation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1b4d1b;strokeColor=#43a047;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="295" width="480" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5h" value="5. 材质变体 ⭐ 最关键" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ff5252;fontColor=#ff5252;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="345" width="180" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p5b" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt; &lt;tr&gt;&lt;td style=&quot;background:#4a1515;border:1px solid #f44336;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;StaticSwitch 参数&lt;/b&gt;&lt;br&gt;N个bool switch = 2^N 组合&lt;br&gt;3个switch → 8种材质变体 → 对应8套PSO&lt;/td&gt; &lt;td style=&quot;background:#4a1515;border:1px solid #f44336;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;QualitySwitch&lt;/b&gt;&lt;br&gt;Low/High两个分支&lt;br&gt;连接ScalabilityGroup&lt;/td&gt; &lt;td style=&quot;background:#4a1515;border:1px solid #f44336;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;MaterialInstance&lt;/b&gt;&lt;br&gt;不同参数覆写产生&lt;br&gt;不同Shader变体&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ff5252;strokeWidth=2;arcSize=4;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="380" width="670" height="65" as="geometry"/>
+                </mxCell>
+                <mxCell id="p6h" value="6. 额外维度" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ce93d8;fontColor=#ce93d8;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="465" width="180" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p6b" value="Lightmap(烘焙/动态) | Nanite(on/off) | DBuffer(on/off) | SM5 vs SM6 | WPO on/off" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d1a3d;strokeColor=#ab47bc;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="230" y="465" width="480" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7h" value="7. 高覆盖嵌套循环采集" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#00bcd4;fontColor=#00bcd4;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="520" width="200" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l1" value="L1: Scalability (最外层)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#134a5c;strokeColor=#00838f;fontColor=#00bcd4;fontSize=13;fontStyle=1;arcSize=8;align=left;spacingLeft=12;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="560" width="250" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l1v" value="Low → Medium → High → Epic" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d3640;strokeColor=#00838f;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="560" width="400" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7a1" value="▼" style="text;html=1;strokeColor=none;fillColor=none;fontSize=18;fontColor=#00bcd4;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="600" width="30" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l2" value="L2: VertexFactory 类型" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#134a5c;strokeColor=#00838f;fontColor=#00bcd4;fontSize=13;fontStyle=1;arcSize=8;align=left;spacingLeft=12;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="628" width="250" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l2v" value="SM → SKM → Landscape → ISM/HISM → SplineMesh → Groom" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d3640;strokeColor=#00838f;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="628" width="400" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7a2" value="▼" style="text;html=1;strokeColor=none;fillColor=none;fontSize=18;fontColor=#00bcd4;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="668" width="30" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l3" value="L3: LOD 距离" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#134a5c;strokeColor=#00838f;fontColor=#00bcd4;fontSize=13;fontStyle=1;arcSize=8;align=left;spacingLeft=12;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="696" width="250" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l3v" value="近距离(LOD0) → 中距离(LOD1) → 远距离(LOD2/LOD3)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d3640;strokeColor=#00838f;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="696" width="400" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7a3" value="▼" style="text;html=1;strokeColor=none;fillColor=none;fontSize=18;fontColor=#00bcd4;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="736" width="30" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l4" value="L4: Material 全量遍历" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#134a5c;strokeColor=#00838f;fontColor=#00bcd4;fontSize=13;fontStyle=1;arcSize=8;align=left;spacingLeft=12;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="764" width="250" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l4v" value="遍历项目中所有 Material Instance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d3640;strokeColor=#00838f;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="764" width="400" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7a4" value="▼" style="text;html=1;strokeColor=none;fillColor=none;fontSize=18;fontColor=#00bcd4;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="804" width="30" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l5" value="L5: StaticSwitch 组合" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3d2200;strokeColor=#ff9100;fontColor=#ff9100;fontSize=13;fontStyle=1;arcSize=8;align=left;spacingLeft=12;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="832" width="250" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l5v" value="解析材质图 → 枚举 2^N 组合 → 智能剪枝无效排列 → 逐一切换" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#261600;strokeColor=#ff9100;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="832" width="400" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7a5" value="▼" style="text;html=1;strokeColor=none;fillColor=none;fontSize=18;fontColor=#00bcd4;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="872" width="30" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l6" value="L6: Flush + 等待编译完成" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1b3d0a;strokeColor=#43a047;fontColor=#76ff03;fontSize=13;fontStyle=1;arcSize=8;align=left;spacingLeft=12;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="900" width="250" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7l6v" value="FlushRenderingCommands() → WaitForShaderCompilation() → DumpToRec()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#142d07;strokeColor=#43a047;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="900" width="400" height="36" as="geometry"/>
+                </mxCell>
+                <mxCell id="p7c" value="for S in [Low,Med,High,Epic]:&lt;br&gt;&amp;nbsp;&amp;nbsp;SetScalability(S); FlushRenderingCommands();&lt;br&gt;&amp;nbsp;&amp;nbsp;for VF in [SM,SKM,Landscape,ISM,SplineMesh,Groom]:&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;for LOD in [Near,Mid,Far]:&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;SetCameraDistance(LOD_Dist[LOD]);&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;for Mat in AllMaterials:&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;for SwitchCombo in MaterialStaticSwitches[Mat]:&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;SetStaticSwitchParams(Mat, SwitchCombo);&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;ApplyToMesh(Mesh[VF], Mat);&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;FlushRenderingCommands();&lt;br&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;&amp;nbsp;WaitForAndDumpShaderCompilation();" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a2028;strokeColor=#004d60;fontColor=#aaa;fontSize=11;fontFamily=Courier New;arcSize=4;align=left;spacingLeft=12;spacingTop=6;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="950" width="670" height="142" as="geometry"/>
+                </mxCell>
+                <mxCell id="p8h" value="8. StaticSwitch 自动解析" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ff9100;fontColor=#ff9100;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1110" width="210" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p8b" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt; &lt;tr&gt; &lt;td style=&quot;background:#3d2200;border:1px solid #ff9100;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;解析材质&lt;/b&gt;&lt;br&gt;遍历Expressions&lt;br&gt;找StaticSwitch&lt;/td&gt; &lt;td style=&quot;color:#ff9100;font-size:16px;&quot;&gt;→&lt;/td&gt; &lt;td style=&quot;background:#3d2200;border:1px solid #ff9100;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;枚举 2^N 组合&lt;/b&gt;&lt;br&gt;智能剪枝&lt;br&gt;跳过无效排列&lt;/td&gt; &lt;td style=&quot;color:#ff9100;font-size:16px;&quot;&gt;→&lt;/td&gt; &lt;td style=&quot;background:#3d2200;border:1px solid #ff9100;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;逐一切换&lt;/b&gt;&lt;br&gt;StaticSwitchParam&lt;br&gt;+ FlushRendering&lt;/td&gt; &lt;td style=&quot;color:#ff9100;font-size:16px;&quot;&gt;→&lt;/td&gt; &lt;td style=&quot;background:#3d2200;border:1px solid #ff9100;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;记录PSO&lt;/b&gt;&lt;br&gt;.rec文件&lt;/td&gt; &lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ff9100;strokeWidth=2;arcSize=4;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1145" width="670" height="52" as="geometry"/>
+                </mxCell>
+                <mxCell id="p8n" value="⚠ N个Switch理论2^N组合，实际只有真子集有效。解析Switch依赖关系跳过无效组合。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#261600;strokeColor=#ff9100;fontColor=#ffb74d;fontSize=11;arcSize=8;align=left;spacingLeft=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1202" width="670" height="24" as="geometry"/>
+                </mxCell>
+                <mxCell id="p9h" value="9. 覆盖率提升对比" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ffd700;fontColor=#ffd700;fontSize=14;fontStyle=1;arcSize=10;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1245" width="180" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="p9t" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt; &lt;tr style=&quot;background:#2a2a3e;&quot;&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;&lt;b&gt;策略&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;&lt;b&gt;维度覆盖&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;text-align:center;&quot;&gt;&lt;b&gt;PSO覆盖率&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;text-align:center;&quot;&gt;&lt;b&gt;耗时&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt; &lt;tr&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;❌ 贴Cube&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;BasePass×SM×LOD0×High&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;color:#ff5252;text-align:center;&quot;&gt;~15%&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;text-align:center;&quot;&gt;分钟&lt;/td&gt;&lt;/tr&gt; &lt;tr&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;⚠ 基础&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;全Pass×SM+SKM×LOD0-3×High&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;color:#ffab40;text-align:center;&quot;&gt;~50%&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;text-align:center;&quot;&gt;~20min&lt;/td&gt;&lt;/tr&gt; &lt;tr&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;color:#76ff03;&quot;&gt;✅ 全维&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;全Pass×全VF×全LOD×全画质×全Switch&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;color:#76ff03;text-align:center;&quot;&gt;~95%+&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;text-align:center;&quot;&gt;~1-2h&lt;/td&gt;&lt;/tr&gt; &lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ffd700;strokeWidth=2;arcSize=4;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1280" width="670" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="sum" value="&lt;b style=&quot;font-size:13px;color:#ff5252;&quot;&gt;核心要点&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#e0e0e0&quot; style=&quot;font-size:11px;&quot;&gt; ① 材质PSO不是一种，而是 &lt;b&gt;Pass×VF×LOD×Scalability×Variant&lt;/b&gt; 的全排列组合&lt;br&gt; ② &lt;b&gt;StaticSwitch&lt;/b&gt; 是最大遗漏源 — 每个材质里可能有多个Switch，每种组合=独立PSO&lt;br&gt; ③ 必须用 &lt;b&gt;嵌套循环&lt;/b&gt; 穷举所有维度，按 Scalability → VF → LOD → Material → Switch 顺序&lt;br&gt; ④ 外层先切换 Scalability（开销大），内层切换材质参数（开销小）&lt;br&gt; ⑤ 对含StaticSwitch的材质，需解析材质图、枚举组合、智能剪枝无效排列&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e111a;strokeColor=#ff5252;strokeWidth=2;arcSize=4;align=left;spacingLeft=14;spacingTop=8;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="1400" width="670" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="rn" value="&lt;b&gt;维度增长计算&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:11px;&quot;&gt; 假设项目有 100 个Material&lt;br&gt; 其中20个含StaticSwitch(avg 2个)&lt;br&gt;&lt;br&gt; ❌ 贴Cube:&lt;br&gt; 100 × 1 × 1 × 1 = &lt;b&gt;100&lt;/b&gt; 组合&lt;br&gt;&lt;br&gt; ⚠ 基础:&lt;br&gt; 100 × 6pass × 2VF × 3LOD = &lt;b&gt;3,600&lt;/b&gt;&lt;br&gt;&lt;br&gt; ✅ 全维:&lt;br&gt; 100 × 6pass × 5VF × 3LOD&lt;br&gt; × 4Scalability × 4SwitchAvg&lt;br&gt; = &lt;b&gt;144,000&lt;/b&gt; 组合&lt;br&gt;&lt;br&gt; &lt;font color=&quot;#76ff03&quot;&gt;覆盖率: 100 → 3600 → 144000&lt;/font&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#555;fontColor=#e0e0e0;fontSize=11;arcSize=8;align=left;spacingLeft=12;spacingTop=8;" parent="1" vertex="1">
+                    <mxGeometry x="750" y="70" width="240" height="200" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

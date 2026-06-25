@@ -1,0 +1,138 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="NiagaraPSO高覆盖率采集" id="niagara-cov">
+    <mxGraphModel dx="1100" dy="850" grid="1" gridSize="10" guides="1" pageWidth="1200" pageHeight="1600" background="#1a1a2e">
+      <root>
+        <mxCell id="0"/><mxCell id="1" parent="0"/>
+
+        <mxCell id="t" value="Niagara PSO 高覆盖率采集策略" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=24;fontColor=#76ff03;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="15" width="500" height="40" as="geometry"/></mxCell>
+
+        <mxCell id="fm" value="&lt;b&gt;Niagara PSO = Renderer × SimulationPath × Quality × EmitterState × DataInterface × Material&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#122612;strokeColor=#76ff03;fontColor=#b2ff59;fontSize=13;arcSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="70" width="650" height="32" as="geometry"/></mxCell>
+
+        <!-- 1. Renderer -->
+        <mxCell id="n1h" value="1. Renderer 类型（5种）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#76ff03;fontColor=#76ff03;fontSize=14;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="190" height="30" as="geometry"/></mxCell>
+        <mxCell id="n1b" value="Sprite | Ribbon | Mesh | Light | Volume" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1b4d1b;strokeColor=#43a047;fontColor=#e0e0e0;fontSize=12;arcSize=8;align=center;" vertex="1" parent="1">
+          <mxGeometry x="240" y="120" width="450" height="30" as="geometry"/></mxCell>
+        <mxCell id="n1n" value="⚠ 不同 Renderer 有完全不同的 Shader 和 PSO，每种都必须覆盖" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#142610;strokeColor=#76ff03;fontColor=#b2ff59;fontSize=11;arcSize=8;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="155" width="650" height="24" as="geometry"/></mxCell>
+
+        <!-- 2. Simulation -->
+        <mxCell id="n2h" value="2. 模拟路径 + 质量" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#00bcd4;fontColor=#00bcd4;fontSize=14;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="195" width="190" height="30" as="geometry"/></mxCell>
+        <mxCell id="n2b" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt;
+&lt;tr&gt;&lt;td style=&quot;background:#134a5c;border:1px solid #0288d1;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;GPU Simulation&lt;/b&gt;&lt;br&gt;ComputeShader-Based&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #0288d1;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;CPU Simulation&lt;/b&gt;&lt;br&gt;GameThread-Based&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #0288d1;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Effect Quality&lt;/b&gt;&lt;br&gt;Low/Med/High/Epic/Cinematic&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#00bcd4;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="230" width="650" height="48" as="geometry"/></mxCell>
+        <mxCell id="n2n" value="⚠ GPU/CPU 模拟路径 → 完全不同的 Shader 管线，两种都要覆盖（部分系统不支持GPU则跳过）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d2f38;strokeColor=#4fc3f7;fontColor=#81d4fa;fontSize=11;arcSize=8;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="283" width="650" height="24" as="geometry"/></mxCell>
+
+        <!-- 3. Emitter State -->
+        <mxCell id="n3h" value="3. Emitter 状态覆盖 ⭐ 最易遗漏" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ff5252;fontColor=#ff5252;fontSize=14;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="325" width="220" height="30" as="geometry"/></mxCell>
+        <mxCell id="n3b" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#4a1515;border:1px solid #f44336;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Spawn 阶段&lt;/b&gt;&lt;br&gt;一次性/持续Spawn&lt;br&gt;不同SpawnRate&lt;/td&gt;
+&lt;td style=&quot;background:#4a1515;border:1px solid #f44336;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Update 阶段&lt;/b&gt;&lt;br&gt;生命周期不同阶段&lt;br&gt;颜色/大小/力场变化&lt;/td&gt;
+&lt;td style=&quot;background:#4a1515;border:1px solid #f44336;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Module 激活&lt;/b&gt;&lt;br&gt;条件Module激活&lt;br&gt;不同EmitterLoop&lt;/td&gt;
+&lt;td style=&quot;background:#4a1515;border:1px solid #f44336;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;粒子数量&lt;/b&gt;&lt;br&gt;少量vs满屏&lt;br&gt;触发不同分支&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ff5252;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="360" width="650" height="60" as="geometry"/></mxCell>
+
+        <!-- 4. DataInterface -->
+        <mxCell id="n4h" value="4. Data Interface 覆盖" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#f0a500;fontColor=#f0a500;fontSize=14;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="440" width="190" height="30" as="geometry"/></mxCell>
+        <mxCell id="n4b" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;SkeletalMesh&lt;/b&gt;&lt;br&gt;采样骨骼&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;StaticMesh&lt;/b&gt;&lt;br&gt;采样顶点/位置&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;RenderTarget&lt;/b&gt;&lt;br&gt;采样贴图&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Collision&lt;/b&gt;&lt;br&gt;碰撞查询&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;CurlNoise&lt;/b&gt;&lt;br&gt;噪声场&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#f0a500;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="475" width="650" height="48" as="geometry"/></mxCell>
+        <mxCell id="n4n" value="⚠ 每个不同的 DataInterface 引入不同的 Compute Shader，必须全部激活调用" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d2505;strokeColor=#f0a500;fontColor=#f0a500;fontSize=11;arcSize=8;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="528" width="650" height="24" as="geometry"/></mxCell>
+
+        <!-- 5. Renderer Properties -->
+        <mxCell id="n5h" value="5. Renderer 属性覆盖" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ce93d8;fontColor=#ce93d8;fontSize=14;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="570" width="190" height="30" as="geometry"/></mxCell>
+        <mxCell id="n5b" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#2d1a3d;border:1px solid #ab47bc;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Sort Mode&lt;/b&gt;&lt;br&gt;None/Distance/&lt;br&gt;CustomAscending&lt;/td&gt;
+&lt;td style=&quot;background:#2d1a3d;border:1px solid #ab47bc;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;MaterialBinding&lt;/b&gt;&lt;br&gt;不同材质覆盖&lt;br&gt;不同DynamicParam&lt;/td&gt;
+&lt;td style=&quot;background:#2d1a3d;border:1px solid #ab47bc;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Aligment&lt;/b&gt;&lt;br&gt;Facing/Velocity/&lt;br&gt;CustomAligned&lt;/td&gt;
+&lt;td style=&quot;background:#2d1a3d;border:1px solid #ab47bc;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Cutout/Tiling&lt;/b&gt;&lt;br&gt;SubUV动画&lt;br&gt;不同参数&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ce93d8;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="605" width="650" height="60" as="geometry"/></mxCell>
+
+        <!-- 6. 采集流程 -->
+        <mxCell id="n6h" value="6. 高覆盖采集流程（多阶段并行）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#00bcd4;fontColor=#00bcd4;fontSize=14;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="685" width="240" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="n6t" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:6px;text-align:center;vertical-align:top;&quot;&gt;&lt;b&gt;Phase&lt;br&gt;1&lt;/b&gt;&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:6px;text-align:left;&quot;&gt;&lt;b&gt;远程距离覆盖&lt;/b&gt;&lt;br&gt;• 同时Spawn多个系统（不同类型Renderer)&lt;br&gt;• 相机从远→近拉近 3个距离档位&lt;br&gt;• 确保LOD/裁剪都触发&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:6px;text-align:center;vertical-align:top;&quot;&gt;&lt;b&gt;Phase&lt;br&gt;2&lt;/b&gt;&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:6px;text-align:left;&quot;&gt;&lt;b&gt;逐个深度遍历&lt;/b&gt;&lt;br&gt;• 每个 System 单独Spawn，保持屏幕可见&lt;br&gt;• 播放完整生命周期（Spawn→Update→Death）&lt;br&gt;• 等待 AreShadersCompiling()==false 后下一个&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:6px;text-align:center;vertical-align:top;&quot;&gt;&lt;b&gt;Phase&lt;br&gt;3&lt;/b&gt;&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:6px;text-align:left;&quot;&gt;&lt;b&gt;画质遍历&lt;/b&gt;&lt;br&gt;• 切换 EffectQuality (Low→Cinematic)&lt;br&gt;• 每档画质重跑 Phase2&lt;br&gt;• 因为 Emitter Quality 影响 Spawn/Module 分支&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:6px;text-align:center;vertical-align:top;&quot;&gt;&lt;b&gt;Phase&lt;br&gt;4&lt;/b&gt;&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:6px;text-align:left;&quot;&gt;&lt;b&gt;特殊场景&lt;/b&gt;&lt;br&gt;• Collision Query 需要碰撞体存在&lt;br&gt;• SkeletalMesh DI 需要带骨骼网格&lt;br&gt;• Render Target DI 需要有效RT&lt;br&gt;• GPU/CPU 分别跑（部分系统只支持一种）&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#00bcd4;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="720" width="650" height="170" as="geometry"/></mxCell>
+
+        <!-- 7. 特殊Module覆盖 -->
+        <mxCell id="n7h" value="7. 特殊 Module 场景（需造环境）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ff9100;fontColor=#ff9100;fontSize=14;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="910" width="240" height="30" as="geometry"/></mxCell>
+        <mxCell id="n7b" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#3d2200;border:1px solid #ff9100;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Collision&lt;/b&gt;&lt;br&gt;场景需有碰撞体&lt;br&gt;GPU/CPU碰撞&lt;/td&gt;
+&lt;td style=&quot;background:#3d2200;border:1px solid #ff9100;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Lights&lt;/b&gt;&lt;br&gt;灯光粒子Renderer&lt;br&gt;需光照环境&lt;/td&gt;
+&lt;td style=&quot;background:#3d2200;border:1px solid #ff9100;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;Events&lt;/b&gt;&lt;br&gt;Emitter事件链&lt;br&gt;Generate/Receive&lt;/td&gt;
+&lt;td style=&quot;background:#3d2200;border:1px solid #ff9100;padding:6px;text-align:center;&quot;&gt;&lt;b&gt;ScratchPad&lt;/b&gt;&lt;br&gt;ScratchPad Module&lt;br&gt;需特殊初始化&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ff9100;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="945" width="650" height="48" as="geometry"/></mxCell>
+
+        <!-- 8. 覆盖率对比 -->
+        <mxCell id="n8h" value="8. 覆盖率提升对比" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ffd700;fontColor=#ffd700;fontSize=14;fontStyle=1;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1015" width="180" height="30" as="geometry"/></mxCell>
+        <mxCell id="n8t" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt;
+&lt;tr style=&quot;background:#2a2a3e;&quot;&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;&lt;b&gt;策略&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;&lt;b&gt;覆盖内容&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;text-align:center;&quot;&gt;&lt;b&gt;PSO覆盖率&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;text-align:center;&quot;&gt;&lt;b&gt;耗时&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;❌ 简单Spawn&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;固定距离+Sprite+High画质&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;color:#ff5252;text-align:center;&quot;&gt;~10%&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;text-align:center;&quot;&gt;分钟&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;⚠ 基础策略&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;全Renderer+多距离+High画质&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;color:#ffab40;text-align:center;&quot;&gt;~40%&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;text-align:center;&quot;&gt;~15min&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;color:#76ff03;&quot;&gt;✅ 全维策略&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;&quot;&gt;全Renderer×全画质×GPU/CPU×全Module状态×全DI&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;color:#76ff03;text-align:center;&quot;&gt;~90%+&lt;/td&gt;&lt;td style=&quot;padding:5px;border:1px solid #555;text-align:center;&quot;&gt;~30-60min&lt;/td&gt;&lt;/tr&gt;
+&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ffd700;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1050" width="650" height="100" as="geometry"/></mxCell>
+
+        <!-- 核心要点 -->
+        <mxCell id="nsum" value="&lt;b style=&quot;font-size:13px;color:#ff5252;&quot;&gt;核心要点&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#e0e0e0&quot; style=&quot;font-size:11px;&quot;&gt;
+① Niagara PSO = &lt;b&gt;Renderer × SimPath × Quality × EmitterState × DataInterface × RendererProperty&lt;/b&gt; 的全排列&lt;br&gt;
+② &lt;b&gt;GPU vs CPU 模拟&lt;/b&gt; 是最关键的分叉 — ComputeShader vs GameThread，PSO 完全不同&lt;br&gt;
+③ &lt;b&gt;Emitter 状态覆盖&lt;/b&gt; 最易遗漏 — Spawn/Update/Death 不同阶段触发不同 Module PSO&lt;br&gt;
+④ &lt;b&gt;DataInterface 特殊场景&lt;/b&gt; 需要造环境 — Collision需碰撞体、SkeletalMesh DI需骨骼网格等&lt;br&gt;
+⑤ &lt;b&gt;Niagara编译是异步的&lt;/b&gt; — 每轮必须等待 AreShadersCompiling()==false 再继续&lt;br&gt;
+⑥ 部分系统不支持GPU模拟 → 检测NiagaraSystem属性，仅对GPU-capable的切换GPU路径&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e111a;strokeColor=#ff5252;strokeWidth=2;arcSize=4;align=left;spacingLeft=14;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1170" width="650" height="115" as="geometry"/></mxCell>
+
+        <!-- 右侧对比 -->
+        <mxCell id="rn" value="&lt;b&gt;Niagara vs Material 差异&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#888&quot; style=&quot;font-size:11px;&quot;&gt;
+&lt;b&gt;Material PSO:&lt;/b&gt;&lt;br&gt;• Pass驱动（外部调用）&lt;br&gt;• 被动等待渲染请求&lt;br&gt;• 可提前加载&lt;br&gt;&lt;br&gt;
+&lt;b&gt;Niagara PSO:&lt;/b&gt;&lt;br&gt;• 状态驱动（Emitter生命周期）&lt;br&gt;• 必须真实Spawn才能触发&lt;br&gt;• Module按需编译&lt;br&gt;&lt;br&gt;
+&lt;font color=&quot;#76ff03&quot;&gt;关键区别:&lt;/font&gt;&lt;br&gt;Niagara需要 &lt;b&gt;时间维度&lt;/b&gt;&lt;br&gt;（等待生命周期走完）&lt;br&gt;Material只需要 &lt;b&gt;空间维度&lt;/b&gt;&lt;br&gt;（切换材质+Flush即可）&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#555;fontColor=#e0e0e0;fontSize=11;arcSize=8;align=left;spacingLeft=12;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="730" y="70" width="240" height="230" as="geometry"/></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

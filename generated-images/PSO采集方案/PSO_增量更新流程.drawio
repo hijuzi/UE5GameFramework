@@ -1,0 +1,97 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="增量流程" id="inc">
+    <mxGraphModel dx="1000" dy="1300" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="900" pageHeight="1100">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="t0" value="&lt;b style=&quot;font-size:18px&quot;&gt;增量 PSO 缓存更新流程&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=18;fontColor=#1A1A2E;" parent="1" vertex="1">
+          <mxGeometry x="180" y="15" width="400" height="35" as="geometry" />
+        </mxCell>
+        
+        <!-- Trigger -->
+        <mxCell id="n1" value="&lt;b&gt;触发: 新增/修改材质、特效、关卡&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#C0392B;strokeColor=#8E1E1E;fontColor=#ffffff;fontSize=13;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="200" y="65" width="360" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" parent="1" source="n1" target="n2" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        
+        <!-- Re-cook -->
+        <mxCell id="n2" value="&lt;b&gt;重新 Cook (增量)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;仅更新变更部分 .shk&amp;emsp;⏱ &amp;lt;5 min&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2980B9;strokeColor=#1A5276;fontColor=#fff;fontSize=13;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="220" y="135" width="320" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="n2" target="n3" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        
+        <!-- Collect -->
+        <mxCell id="n3" value="&lt;b&gt;增量采集 .rec&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;新Material→各网格 | 新Niagara→播放 | 新关卡→跑一遍&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#27AE60;strokeColor=#1A7A3A;fontColor=#fff;fontSize=12;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="190" y="205" width="380" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="n3" target="n4" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        
+        <!-- New rec -->
+        <mxCell id="n4" value="&lt;b&gt;产出: new_xxxx.rec.upipelinecache&lt;/b&gt;" style="shape=document;whiteSpace=wrap;html=1;boundedLbl=1;fillColor=#F39C12;strokeColor=#9A7D0A;fontColor=#333;fontSize=12;" parent="1" vertex="1">
+          <mxGeometry x="210" y="280" width="340" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="a4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="n4" target="n5" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        
+        <!-- Merge -->
+        <mxCell id="n5" value="&lt;b&gt;汇聚合并新旧 .rec&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;原有.rec (保留) + 新增.rec (追加) + 最新.shk (覆盖)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#9B59B6;strokeColor=#6C3483;fontColor=#fff;fontSize=12;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="170" y="350" width="420" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="a5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="n5" target="n6" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        
+        <!-- Expand -->
+        <mxCell id="n6" value="&lt;b&gt;expand 合并转换&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;旧.rec + 新.rec + .shk → 新版.spc (自动去重)&amp;emsp;⏱ &amp;lt;1 min&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E67E22;strokeColor=#B85D0F;fontColor=#fff;fontSize=12;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="190" y="425" width="380" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="n6" target="n7" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        
+        <!-- Integrate -->
+        <mxCell id="n7" value="&lt;b&gt;集成 .spc&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;copy → Build/Windows/PipelineCaches/ (覆盖旧版)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2980B9;strokeColor=#1A5276;fontColor=#fff;fontSize=12;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="190" y="500" width="380" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="a7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#666;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="n7" target="n8" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        
+        <!-- Pack -->
+        <mxCell id="n8" value="&lt;b&gt;重新打包&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;UAT BuildCookRun&amp;emsp;⏱ 10~60 min&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E67E22;strokeColor=#B85D0F;fontColor=#fff;fontSize=12;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="220" y="570" width="320" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="a8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#27AE60;strokeWidth=3;endArrow=block;endFill=1;" parent="1" source="n8" target="n9" edge="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        
+        <!-- Done -->
+        <mxCell id="n9" value="&lt;b style=&quot;font-size:14px&quot;&gt;✔ 包体 PSO 已更新&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2ECC71;strokeColor=#1A7A3A;fontColor=#fff;fontSize=14;arcSize=10;" parent="1" vertex="1">
+          <mxGeometry x="220" y="640" width="320" height="40" as="geometry" />
+        </mxCell>
+        
+        <!-- Comparison Table -->
+        <mxCell id="tbl_bg" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8F9FA;strokeColor=#BDC3C7;arcSize=5;" parent="1" vertex="1">
+          <mxGeometry x="100" y="710" width="560" height="155" as="geometry" />
+        </mxCell>
+        <mxCell id="tbl_ttl" value="&lt;b&gt;首次 vs 增量 对比&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=#2C3E50;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=13;fontColor=#fff;" parent="1" vertex="1">
+          <mxGeometry x="100" y="710" width="560" height="30" as="geometry" />
+        </mxCell>
+        
+        <mxCell id="c00" value="&lt;b&gt;步骤&lt;/b&gt;" style="text;html=1;strokeColor=#BDC3C7;fillColor=#ECF0F1;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="100" y="740" width="140" height="25" as="geometry"/></mxCell>
+        <mxCell id="c01" value="&lt;b&gt;首次&lt;/b&gt;" style="text;html=1;strokeColor=#BDC3C7;fillColor=#ECF0F1;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="240" y="740" width="210" height="25" as="geometry"/></mxCell>
+        <mxCell id="c02" value="&lt;b&gt;增量&lt;/b&gt;" style="text;html=1;strokeColor=#BDC3C7;fillColor=#27AE60;align=center;fontSize=11;fontColor=#fff;" parent="1" vertex="1"><mxGeometry x="450" y="740" width="210" height="25" as="geometry"/></mxCell>
+        
+        <mxCell id="r10" value=".shk 生成" style="text;html=1;strokeColor=#BDC3C7;fillColor=#fff;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="100" y="765" width="140" height="25" as="geometry"/></mxCell>
+        <mxCell id="r11" value="Cook 全部资源" style="text;html=1;strokeColor=#BDC3C7;fillColor=#fff;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="240" y="765" width="210" height="25" as="geometry"/></mxCell>
+        <mxCell id="r12" value="Cook 增量 (仅变更部分)" style="text;html=1;strokeColor=#BDC3C7;fillColor=#E8F8F5;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="450" y="765" width="210" height="25" as="geometry"/></mxCell>
+        
+        <mxCell id="r20" value=".rec 采集" style="text;html=1;strokeColor=#BDC3C7;fillColor=#fff;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="100" y="790" width="140" height="25" as="geometry"/></mxCell>
+        <mxCell id="r21" value="Warmup Map + 测试游玩" style="text;html=1;strokeColor=#BDC3C7;fillColor=#fff;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="240" y="790" width="210" height="25" as="geometry"/></mxCell>
+        <mxCell id="r22" value="仅覆盖新增内容" style="text;html=1;strokeColor=#BDC3C7;fillColor=#E8F8F5;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="450" y="790" width="210" height="25" as="geometry"/></mxCell>
+        
+        <mxCell id="r30" value="expand" style="text;html=1;strokeColor=#BDC3C7;fillColor=#fff;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="100" y="815" width="140" height="25" as="geometry"/></mxCell>
+        <mxCell id="r31" value="全新生成 .spc" style="text;html=1;strokeColor=#BDC3C7;fillColor=#fff;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="240" y="815" width="210" height="25" as="geometry"/></mxCell>
+        <mxCell id="r32" value="新旧合并 → 重生成 .spc" style="text;html=1;strokeColor=#BDC3C7;fillColor=#E8F8F5;align=center;fontSize=11;" parent="1" vertex="1"><mxGeometry x="450" y="815" width="210" height="25" as="geometry"/></mxCell>
+        
+        <mxCell id="r40" value="总耗时" style="text;html=1;strokeColor=#BDC3C7;fillColor=#ECF0F1;align=center;fontSize=11;fontStyle=1;" parent="1" vertex="1"><mxGeometry x="100" y="840" width="140" height="25" as="geometry"/></mxCell>
+        <mxCell id="r41" value="~2 小时" style="text;html=1;strokeColor=#BDC3C7;fillColor=#FDEBD0;align=center;fontSize=11;fontStyle=1;fontColor=#C0392B;" parent="1" vertex="1"><mxGeometry x="240" y="840" width="210" height="25" as="geometry"/></mxCell>
+        <mxCell id="r42" value="~10 分钟" style="text;html=1;strokeColor=#BDC3C7;fillColor=#D5F5E3;align=center;fontSize=11;fontStyle=1;fontColor=#1A7A3A;" parent="1" vertex="1"><mxGeometry x="450" y="840" width="210" height="25" as="geometry"/></mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

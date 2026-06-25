@@ -1,0 +1,23 @@
+﻿{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "PSOCacheSystem",
+	"Description": "PSOCache处理、检测、加载等功能",
+	"Category": "Other",
+	"CreatedBy": "xiele",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "PSOCacheSystem",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}

@@ -1,0 +1,191 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="PSO Warmup Map 设计指南" id="warmup">
+    <mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" pageWidth="1400" pageHeight="1500" background="#1a1a2e">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- Title -->
+        <mxCell id="title" value="PSO Warmup Map 设计指南" style="text;html=1;strokeColor=none;fillColor=none;align=center;fontSize=26;fontColor=#00d4ff;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="500" height="45" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 一、地图结构 ===== -->
+        <mxCell id="s1h" value="一、地图结构 (5区)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#1faa59;fontColor=#1faa59;fontSize=16;fontStyle=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="200" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1-items" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:12px;&quot;&gt;
+&lt;tr&gt;&lt;td style=&quot;width:20%;background:#1f4068;border:1px solid #206a5d;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;光照环境区&lt;/b&gt;&lt;br&gt;完整光照场景&lt;/td&gt;
+&lt;td style=&quot;width:20%;background:#1f4068;border:1px solid #206a5d;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;材质展示区&lt;/b&gt;&lt;br&gt;所有材质遍历&lt;/td&gt;
+&lt;td style=&quot;width:20%;background:#1f4068;border:1px solid #206a5d;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;网格类型区&lt;/b&gt;&lt;br&gt;覆盖所有VF&lt;/td&gt;
+&lt;td style=&quot;width:20%;background:#1f4068;border:1px solid #206a5d;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;Niagara区&lt;/b&gt;&lt;br&gt;粒子系统播放&lt;/td&gt;
+&lt;td style=&quot;width:20%;background:#1f4068;border:1px solid #206a5d;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;脚本控制器&lt;/b&gt;&lt;br&gt;自动化调度&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#1faa59;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="135" width="650" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 二、必须覆盖的 Pass ===== -->
+        <mxCell id="s2h" value="二、必须覆盖的渲染 Pass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#e43f5a;fontColor=#e43f5a;fontSize=16;fontStyle=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="220" width="220" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2-items" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:12px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#3d1a3d;border:1px solid #9b59b6;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;BasePass&lt;/b&gt;&lt;br&gt;主渲染&lt;/td&gt;
+&lt;td style=&quot;background:#3d1a3d;border:1px solid #9b59b6;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;ShadowDepth&lt;/b&gt;&lt;br&gt;阴影&lt;/td&gt;
+&lt;td style=&quot;background:#3d1a3d;border:1px solid #9b59b6;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;CustomDepth&lt;/b&gt;&lt;br&gt;自定义深度&lt;/td&gt;
+&lt;td style=&quot;background:#3d1a3d;border:1px solid #9b59b6;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;Translucency&lt;/b&gt;&lt;br&gt;半透明&lt;/td&gt;
+&lt;td style=&quot;background:#3d1a3d;border:1px solid #9b59b6;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;Velocity&lt;/b&gt;&lt;br&gt;运动向量&lt;/td&gt;
+&lt;td style=&quot;background:#3d1a3d;border:1px solid #9b59b6;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;DepthOnly&lt;/b&gt;&lt;br&gt;纯深度&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#e43f5a;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="265" width="650" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2-note" value="⚠ 场景配置：DirectionalLight + SkyLight + 半透明物体 + CustomDepth Stencil + 移动物体" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d1a2d;strokeColor=#9b59b6;fontColor=#bbb;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="325" width="650" height="28" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 三、VertexFactory ===== -->
+        <mxCell id="s3h" value="三、覆盖所有 VertexFactory 类型" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#f0a500;fontColor=#f0a500;fontSize=16;fontStyle=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="380" width="260" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3-items" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:12px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;StaticMesh&lt;/b&gt;&lt;br&gt;LocalVF&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;SkeletalMesh&lt;/b&gt;&lt;br&gt;绑骨动画VF&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;Landscape&lt;/b&gt;&lt;br&gt;地形VF&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;ISM/HISM&lt;/b&gt;&lt;br&gt;实例化VF&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;SplineMesh&lt;/b&gt;&lt;br&gt;样条网格&lt;/td&gt;
+&lt;td style=&quot;background:#3d2e0a;border:1px solid #cca300;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;Particle&lt;/b&gt;&lt;br&gt;Sprite/Ribbon&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#f0a500;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="425" width="650" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3-note" value="⚠ 同一材质在不同 VF 下需要独立 PSO，缺一不可" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2d2505;strokeColor=#f0a500;fontColor=#f0a500;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="485" width="650" height="28" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 四、材质覆盖流程 ===== -->
+        <mxCell id="s4h" value="四、材质覆盖策略（自动化循环）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#00bcd4;fontColor=#00bcd4;fontSize=16;fontStyle=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="540" width="260" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4-flow" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:12px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:10px;text-align:center;&quot;&gt;&lt;b&gt;① GetAllMaterials()&lt;/b&gt;&lt;br&gt;获取全部材质&lt;/td&gt;
+&lt;td style=&quot;color:#00bcd4;font-size:20px;text-align:center;vertical-align:middle;&quot;&gt;→&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:10px;text-align:center;&quot;&gt;&lt;b&gt;② SetMaterial(0, Mat)&lt;/b&gt;&lt;br&gt;逐个应用到网格&lt;/td&gt;
+&lt;td style=&quot;color:#00bcd4;font-size:20px;text-align:center;vertical-align:middle;&quot;&gt;→&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:10px;text-align:center;&quot;&gt;&lt;b&gt;③ FlushRendering&lt;/b&gt;&lt;br&gt;强制渲染一次&lt;/td&gt;
+&lt;td style=&quot;color:#00bcd4;font-size:20px;text-align:center;vertical-align:middle;&quot;&gt;→&lt;/td&gt;
+&lt;td style=&quot;background:#134a5c;border:1px solid #00838f;padding:10px;text-align:center;&quot;&gt;&lt;b&gt;④ WaitForCompletion&lt;/b&gt;&lt;br&gt;等Shader编译完成&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#00bcd4;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="585" width="650" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s4-note" value="⟲ 循环：每个材质 × 每种网格类型（SM/SKM 各一次）  |  💡 多 LOD、多距离、多角度渲染" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0d2f38;strokeColor=#00bcd4;fontColor=#80deea;fontSize=11;arcSize=10;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="645" width="650" height="28" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 五、Niagara ===== -->
+        <mxCell id="s5h" value="五、Niagara 粒子覆盖策略" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#76ff03;fontColor=#76ff03;fontSize=16;fontStyle=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="700" width="230" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5-items" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:12px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#1b4d1b;border:1px solid #2e7d32;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;① 获取全部&lt;/b&gt;&lt;br&gt;GetAllNiagaraSystems()&lt;/td&gt;
+&lt;td style=&quot;background:#1b4d1b;border:1px solid #2e7d32;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;② 逐个Spawn&lt;/b&gt;&lt;br&gt;播放 ≥ 3-5秒&lt;/td&gt;
+&lt;td style=&quot;background:#1b4d1b;border:1px solid #2e7d32;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;③ 等待异步编译&lt;/b&gt;&lt;br&gt;AreShadersCompiling()==false&lt;/td&gt;
+&lt;td style=&quot;background:#1b4d1b;border:1px solid #2e7d32;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;④ 覆盖全部Renderer&lt;/b&gt;&lt;br&gt;Sprite/Ribbon/Mesh&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#76ff03;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="745" width="650" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="s5-note" value="⚠ GPU Simulation 和 CPU Simulation 走不同 Shader 路径，两种都要覆盖" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#142610;strokeColor=#76ff03;fontColor=#b2ff59;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="40" y="805" width="650" height="28" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 六、4阶段自动化流程 ===== -->
+        <mxCell id="s6h" value="六、自动化 Warmup 流程（4 Phase）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ff6d00;fontColor=#ff6d00;fontSize=16;fontStyle=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="860" width="280" height="36" as="geometry"/>
+        </mxCell>
+
+        <!-- Phase 1 -->
+        <mxCell id="p1" value="&lt;b&gt;Phase 1：光照预热&lt;/b&gt;&lt;hr&gt;• 加载光照场景&lt;br&gt;• 相机 360° 环绕&lt;br&gt;• 触发所有 Pass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e1a10;strokeColor=#e65100;fontColor=#e0e0e0;fontSize=11;arcSize=10;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="40" y="910" width="145" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="pa1" value="" style="endArrow=classic;html=1;strokeColor=#ff6d00;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="185" y="952" as="sourcePoint"/>
+            <mxPoint x="210" y="952" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Phase 2 -->
+        <mxCell id="p2" value="&lt;b&gt;Phase 2：材质预热&lt;/b&gt;&lt;hr&gt;• 遍历 Material 全量&lt;br&gt;• SM + SKM 各一次&lt;br&gt;• 多 LOD 渲染&lt;br&gt;• Wait: Shader编译完成" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e1a10;strokeColor=#e65100;fontColor=#e0e0e0;fontSize=11;arcSize=10;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="215" y="910" width="145" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="pa2" value="" style="endArrow=classic;html=1;strokeColor=#ff6d00;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="360" y="952" as="sourcePoint"/>
+            <mxPoint x="385" y="952" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Phase 3 -->
+        <mxCell id="p3" value="&lt;b&gt;Phase 3：Niagara预热&lt;/b&gt;&lt;hr&gt;• 遍历所有 Niagara&lt;br&gt;• 逐个 Spawn 播放&lt;br&gt;• 所有 Emitter 激活&lt;br&gt;• Wait: Shader编译完成" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e1a10;strokeColor=#e65100;fontColor=#e0e0e0;fontSize=11;arcSize=10;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="390" y="910" width="145" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="pa3" value="" style="endArrow=classic;html=1;strokeColor=#ff6d00;strokeWidth=3;" edge="1" parent="1">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="535" y="952" as="sourcePoint"/>
+            <mxPoint x="560" y="952" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- Phase 4 -->
+        <mxCell id="p4" value="&lt;b&gt;Phase 4：画质/平台覆盖&lt;/b&gt;&lt;hr&gt;• 切换 Scalability 等级&lt;br&gt;• Low/Med/High/Epic&lt;br&gt;• 切换 AA 模式&lt;br&gt;• D3D12/Vulkan 分别采集" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e1a10;strokeColor=#e65100;fontColor=#e0e0e0;fontSize=11;arcSize=10;align=left;spacingLeft=10;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="565" y="910" width="145" height="85" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 七、PSOCacheManager ===== -->
+        <mxCell id="s7h" value="七、PSOCacheManager 支撑能力" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#00d4ff;fontColor=#00d4ff;fontSize=16;fontStyle=1;arcSize=12;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1030" width="280" height="36" as="geometry"/>
+        </mxCell>
+        <mxCell id="s7-items" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:12px;&quot;&gt;
+&lt;tr&gt;
+&lt;td style=&quot;background:#1a3a5c;border:1px solid #0288d1;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;GetAllMaterials()&lt;/b&gt;&lt;br&gt;收集全部材质&lt;/td&gt;
+&lt;td style=&quot;background:#1a3a5c;border:1px solid #0288d1;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;GetAllNiagaraSystems()&lt;/b&gt;&lt;br&gt;收集全部粒子&lt;/td&gt;
+&lt;td style=&quot;background:#1a3a5c;border:1px solid #0288d1;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;IsPSOCompilationDone()&lt;/b&gt;&lt;br&gt;检查PSO编译完成&lt;/td&gt;
+&lt;td style=&quot;background:#1a3a5c;border:1px solid #0288d1;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;RunPSOWarmup()&lt;/b&gt;&lt;br&gt;自动化预热流程&lt;/td&gt;
+&lt;td style=&quot;background:#1a3a5c;border:1px solid #0288d1;padding:8px;text-align:center;&quot;&gt;&lt;b&gt;CollectRecordedPSOs()&lt;/b&gt;&lt;br&gt;收集rec文件&lt;/td&gt;
+&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#00d4ff;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1075" width="650" height="55" as="geometry"/>
+        </mxCell>
+
+        <!-- ===== 核心要点 ===== -->
+        <mxCell id="summary" value="&lt;b style=&quot;font-size:16px;color:#ff5252;&quot;&gt;核心要点&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font color=&quot;#e0e0e0&quot;&gt;
+① PSO = &lt;b&gt;Shader源码 × 渲染状态 × 网格类型 × 画质等级&lt;/b&gt;，四者交叉组合，缺一不可&lt;br&gt;
+② 同一材质在不同 &lt;b&gt;Pass / VF / LOD / Scalability&lt;/b&gt; 下都需要独立 PSO&lt;br&gt;
+③ Warmup Map 必须覆盖 &lt;b&gt;所有 Pass + 所有 VF + 所有材质 + 所有 Niagara + 所有画质等级&lt;/b&gt;&lt;br&gt;
+④ Niagara 的 GPU Simulation 和 CPU Simulation 走不同 Shader 路径，需分别覆盖&lt;br&gt;
+⑤ 仅把所有材质贴一个 Cube 上 &lt;b&gt;远远不够&lt;/b&gt;，遗漏会导致运行时 PSO 编译卡顿&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2e111a;strokeColor=#ff5252;strokeWidth=2;arcSize=4;align=left;spacingLeft=16;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1160" width="650" height="130" as="geometry"/>
+        </mxCell>
+
+        <!-- Legend -->
+        <mxCell id="legend" value="&lt;b&gt;图例&lt;/b&gt;&lt;br&gt;🟢 结构  🔴 渲染Pass  🟡 VertexFactory  🔵 材质流程  🟢 Niagara  🟠 自动化  🔷 支撑能力" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#666;fontColor=#e0e0e0;fontSize=11;arcSize=10;align=left;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="720" y="90" width="260" height="50" as="geometry"/>
+        </mxCell>
+
+        <!-- Right side: comparison -->
+        <mxCell id="rc-h" value="工作量对比" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#162447;strokeColor=#ffd700;fontColor=#ffd700;fontSize=14;fontStyle=1;arcSize=12;align=center;" vertex="1" parent="1">
+          <mxGeometry x="720" y="170" width="260" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="rc-table" value="&lt;table border=&quot;0&quot; style=&quot;width:100%;color:#e0e0e0;font-size:11px;&quot;&gt;
+&lt;tr style=&quot;background:#2a2a3e;&quot;&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;text-align:center;&quot;&gt;&lt;b&gt;❌ 错误做法&lt;/b&gt;&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;text-align:center;&quot;&gt;&lt;b&gt;✅ 正确做法&lt;/b&gt;&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;材质覆盖&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;贴Cube上&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;color:#76ff03;&quot;&gt;SM+SKM+Landscape&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;Pass覆盖&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;只有BasePass&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;color:#76ff03;&quot;&gt;6种Pass全量&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;画质等级&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;仅High&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;color:#76ff03;&quot;&gt;Low~Epic全量&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;Niagara&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;仅屏幕空间&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;color:#76ff03;&quot;&gt;世界+屏幕+GPU/CPU&lt;/td&gt;&lt;/tr&gt;
+&lt;tr&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;&quot;&gt;PSO覆盖率&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;color:#ff5252;&quot;&gt;~15%&lt;/td&gt;&lt;td style=&quot;padding:6px;border:1px solid #555;color:#76ff03;&quot;&gt;~95%+&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a1a2e;strokeColor=#ffd700;strokeWidth=2;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="720" y="210" width="260" height="170" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

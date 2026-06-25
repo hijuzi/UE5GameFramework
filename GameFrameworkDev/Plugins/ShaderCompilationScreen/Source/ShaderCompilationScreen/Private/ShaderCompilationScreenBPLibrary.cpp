@@ -67,9 +67,9 @@ TArray<TSoftObjectPtr<UNiagaraSystem>> UShaderCompilationScreenBPLibrary::GetAll
 
 bool UShaderCompilationScreenBPLibrary::AreShadersCompiling()
 {
-#if !UE_EDITOR
-	return false;
-#else
+// #if !UE_EDITOR
+// 	return false;
+// #else
 	return (GShaderCompilingManager->GetNumPendingJobs() + GShaderCompilingManager->GetNumRemainingJobs()) > 0;
-#endif
+//#endif
 }

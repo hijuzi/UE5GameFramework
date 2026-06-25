@@ -623,8 +623,7 @@ class WorkflowTab(QWidget):
         if card:
             card.update_status(status_value)
 
-        if status_value in (StepStatus.SUCCESS.value, StepStatus.FAILED.value):
-            self.step_status_signal.emit(step_index, status_value)
+        self.step_status_signal.emit(step_index, status_value)
 
     def _on_step_result(self, step_index: int, result_text: str):
         """接收步骤执行结果摘要"""

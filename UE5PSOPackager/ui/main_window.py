@@ -1,6 +1,6 @@
 """
 MainWindow - 主窗口
-顶部项目选择器 + 右侧 QTabWidget（配置/工作流/日志）
+顶部项目选择器 + QTabWidget（配置管理 / 工作流执行 / 日志输出 / 日志归档）
 """
 
 from PySide6.QtWidgets import (
@@ -11,9 +11,11 @@ from PySide6.QtCore import Qt
 
 from config_manager import ConfigManager
 from step_runner import StepRunner
+from step_definitions import StepStatus
 from ui.config_tab import ConfigTab
 from ui.workflow_tab import WorkflowTab
 from ui.log_widget import LogWidget
+from ui.log_issue_widget import LogIssueWidget
 from version import __version__
 
 
@@ -26,6 +28,7 @@ class MainWindow(QMainWindow):
         self._config = config
         self._runner = StepRunner(config)
         self._current_project_index: int = -1
+        self._current_running_step: int = -1  # 当前正在执行的步骤（用于日志分流）
 
         self._setup_window()
         self._setup_menu()
@@ -36,8 +39,8 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self):
         self.setWindowTitle(f"UE5 PSOPackager  v{__version__}")
-        self.resize(1300, 940)
-        self.setMinimumSize(1100, 760)
+        self.resize(1500, 940)
+        self.setMinimumSize(1300, 760)
 
     def _setup_menu(self):
         menu_bar = self.menuBar()
@@ -93,11 +96,17 @@ class MainWindow(QMainWindow):
 
         self._workflow_tab = WorkflowTab(self._runner)
         self._workflow_tab.log_signal.connect(self._on_log)
+        self._workflow_tab.step_status_signal.connect(self._on_step_status)
         self._tab_widget.addTab(self._workflow_tab, "工作流执行")
 
         self._log_widget = LogWidget()
         self._log_widget.export_requested.connect(self._export_log)
         self._tab_widget.addTab(self._log_widget, "日志输出")
+
+        self._runner.command_signal.connect(self._on_command)
+
+        self._log_issue_widget = LogIssueWidget()
+        self._tab_widget.addTab(self._log_issue_widget, "日志归档")
 
         layout.addWidget(self._tab_widget)
 
@@ -137,6 +146,25 @@ class MainWindow(QMainWindow):
 
     def _on_log(self, level: str, message: str):
         self._log_widget.append_log(level, message)
+
+        # 分流到日志归档面板（仅打包相关步骤 2/6/8）
+        if self._current_running_step in (2, 6, 8):
+            self._log_issue_widget.append_phase_log(self._current_running_step, level, message)
+
+    def _on_command(self, step_index: int, cmd: str):
+        """转发阶段完整指令到日志归档面板"""
+        self._log_issue_widget.set_phase_command(step_index, cmd)
+
+    def _on_step_status(self, step_index: int, status_value: int):
+        """跟踪当前执行的步骤，用于日志分流"""
+        if status_value == StepStatus.RUNNING.value:
+            self._current_running_step = step_index
+        elif status_value in (StepStatus.SUCCESS.value, StepStatus.FAILED.value):
+            # 步骤完成后刷新日志问题面板
+            self._log_issue_widget.refresh_display()
+            self._current_running_step = -1
+
+        self._log_issue_widget.refresh_display()
 
     def _export_log(self):
         path, _ = QFileDialog.getSaveFileName(

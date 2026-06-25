@@ -63,6 +63,7 @@ class StepRunner(QObject):
     ask_close_editor = Signal(str)               # (message) 请求关闭编辑器
     ask_ini_fix = Signal(str, list)             # (summary, missing_configs) Step1 配置缺失，询问是否写入
     all_done_signal = Signal()                  # 全部步骤完成
+    command_signal = Signal(int, str)           # (step_index, command_text) 阶段完整指令输出
 
     LOG_LEVELS = ("INFO", "SUCCESS", "WARNING", "ERROR")
 
@@ -1001,7 +1002,7 @@ class StepRunner(QObject):
                 Path(self._project.project_dir) / "Saved/Cooked", "Saved/Cooked"
             )
 
-        return self._run_uat_build("Step 2 首次打包")
+        return self._run_uat_build("Step 2 首次打包", step_index=2)
 
     # ---- Step 3: 收集 PSO 记录（自动监听） ----
 
@@ -1418,6 +1419,9 @@ class StepRunner(QObject):
             f' -NullRHI -unattended'
         )
 
+        # 发出指令到日志归档面板
+        self.command_signal.emit(6, cmd)
+
         ok, output = self._run_cmd(cmd)
 
         # 检测 ShaderPipelineCacheTools expand 是否生成了 0 个 stable PSO
@@ -1486,7 +1490,7 @@ class StepRunner(QObject):
             self._add_step_detail(f"输出: {self._project.output_dir}")
             self._add_step_detail("PSO 缓存将内建入包")
 
-        return self._run_uat_build("Step 8 最终打包")
+        return self._run_uat_build("Step 8 最终打包", step_index=8)
 
     # ---- Step 9: 测试 PSO 覆盖范围 ----
 
@@ -1744,7 +1748,7 @@ class StepRunner(QObject):
 
     # ---- UAT 打包核心逻辑 ----
 
-    def _run_uat_build(self, label: str) -> bool:
+    def _run_uat_build(self, label: str, step_index: int = -1) -> bool:
         """调用 RunUAT.bat BuildCookRun 进行打包"""
         if not self._project:
             self._log("ERROR", "未选择项目，请先在顶部下拉框选择项目")
@@ -1783,6 +1787,10 @@ class StepRunner(QObject):
             f' -CrashReporter'
             f' -ShaderFormats={shader_formats}'
         )
+
+        # 发出指令到日志归档面板
+        if step_index >= 0:
+            self.command_signal.emit(step_index, cmd)
 
         self._log("INFO", f"开始 {label}...")
         self._log("INFO", f"  项目: {self._project.name}")
