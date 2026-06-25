@@ -5,6 +5,7 @@ ConfigManager - 全局配置管理器
 """
 
 import os
+import re
 import json
 import shutil
 from dataclasses import dataclass, field
@@ -58,7 +59,6 @@ class ProjectConfig:
     ue5_version: str = ""
     project_dir: str = ""
     uproject_file: str = ""
-    shader_formats: list[str] = field(default_factory=lambda: ["PCD3D_SM6"])
     target_platform: str = "Win64"
     output_dir: str = ""
     pso_cache_work_dir: str = ""
@@ -102,6 +102,71 @@ class ProjectConfig:
     def resolve_spc_target_dir(self) -> str:
         """解析 .spc 目标目录"""
         return str(Path(self.project_dir) / self.spc_target_relative)
+
+
+def read_shader_formats_from_ini(project_dir: str | None) -> str:
+    """从 DefaultEngine.ini 解析 Shader 格式，返回 UAT 命令行格式字符串
+
+    示例："PCD3D_SM5+PCD3D_SM6"（供 -ShaderFormats= 使用）
+    始终根据实际 INI 配置动态读取，不依赖任何持久化存储。
+    """
+    if not project_dir:
+        return "PCD3D_SM6"
+    ini_path = Path(project_dir) / "Config" / "DefaultEngine.ini"
+    if not ini_path.exists():
+        return "PCD3D_SM6"
+    try:
+        content = ini_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return "PCD3D_SM6"
+
+    m_section = re.search(
+        r'\[/Script/WindowsTargetPlatform\.WindowsTargetSettings\](.*?)(?=^\s*\[|\Z)',
+        content, re.DOTALL | re.MULTILINE | re.IGNORECASE
+    )
+    if not m_section:
+        return "PCD3D_SM6"
+    section = m_section.group(1)
+
+    formats = set()
+    for m in re.finditer(r'^\+.*TargetedShaderFormats\s*=\s*(\S+)', section, re.MULTILINE):
+        formats.add(m.group(1).strip())
+    if not formats:
+        return "PCD3D_SM6"
+    return "+".join(sorted(formats))
+
+
+def read_shader_formats_list_from_ini(project_dir: str | None) -> list[str]:
+    """从 DefaultEngine.ini 解析 Shader 格式，返回实际生效的格式列表
+
+    仅解析 + 前缀的行（添加项），- 前缀的行（删除项）不纳入。
+
+    示例：["PCD3D_SM5", "PCD3D_SM6"]
+    """
+    if not project_dir:
+        return ["PCD3D_SM6"]
+    ini_path = Path(project_dir) / "Config" / "DefaultEngine.ini"
+    if not ini_path.exists():
+        return ["PCD3D_SM6"]
+    try:
+        content = ini_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ["PCD3D_SM6"]
+
+    m_section = re.search(
+        r'\[/Script/WindowsTargetPlatform\.WindowsTargetSettings\](.*?)(?=^\s*\[|\Z)',
+        content, re.DOTALL | re.MULTILINE | re.IGNORECASE
+    )
+    if not m_section:
+        return ["PCD3D_SM6"]
+    section = m_section.group(1)
+
+    formats = set()
+    for m in re.finditer(r'^\+.*TargetedShaderFormats\s*=\s*(\S+)', section, re.MULTILINE):
+        formats.add(m.group(1).strip())
+    if not formats:
+        return ["PCD3D_SM6"]
+    return sorted(formats)
 
 
 # ---- ConfigManager ----
@@ -182,7 +247,6 @@ class ConfigManager:
                 "ue5_version": proj.ue5_version,
                 "project_dir": proj.project_dir,
                 "uproject_file": proj.uproject_file,
-                "shader_formats": proj.shader_formats,
                 "target_platform": proj.target_platform,
                 "output_dir": proj.output_dir,
                 "pso_cache_work_dir": proj.pso_cache_work_dir,
@@ -225,7 +289,6 @@ class ConfigManager:
                     proj.ue5_version = data.get("ue5_version", "")
                     proj.project_dir = data.get("project_dir", "")
                     proj.uproject_file = data.get("uproject_file", "")
-                    proj.shader_formats = data.get("shader_formats", ["PCD3D_SM6"])
                     proj.target_platform = data.get("target_platform", "Win64")
                     proj.output_dir = data.get("output_dir", "")
                     proj.pso_cache_work_dir = data.get("pso_cache_work_dir", "")

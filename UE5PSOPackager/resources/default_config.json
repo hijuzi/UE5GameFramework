@@ -12,7 +12,6 @@
       "ue5_version": "5.6",
       "project_dir": "",
       "uproject_file": "",
-      "shader_formats": ["PCD3D_SM6"],
       "target_platform": "Win64",
       "output_dir": "",
       "pso_cache_work_dir": "",

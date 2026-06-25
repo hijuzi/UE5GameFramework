@@ -13,6 +13,7 @@ from config_manager import ConfigManager
 from step_runner import StepRunner
 from step_definitions import StepStatus
 from ui.config_tab import ConfigTab
+from ui.build_params_tab import BuildParamsTab
 from ui.workflow_tab import WorkflowTab
 from ui.log_widget import LogWidget
 from ui.log_issue_widget import LogIssueWidget
@@ -92,7 +93,11 @@ class MainWindow(QMainWindow):
 
         self._config_tab = ConfigTab(self._config)
         self._config_tab.config_changed.connect(self._refresh_project_selector)
+        self._config_tab.selection_changed.connect(self._on_build_params_selection_changed)
         self._tab_widget.addTab(self._config_tab, "配置管理")
+
+        self._build_params_tab = BuildParamsTab(self._config, self._runner)
+        self._tab_widget.addTab(self._build_params_tab, "打包参数")
 
         self._workflow_tab = WorkflowTab(self._runner)
         self._workflow_tab.log_signal.connect(self._on_log)
@@ -112,6 +117,11 @@ class MainWindow(QMainWindow):
 
         # 初始化
         self._refresh_project_selector()
+        # 启动时同步刷新打包参数标签页
+        if self._current_project_index >= 0:
+            proj = self._config.get_project(self._current_project_index)
+            ue_ver = proj.ue5_version if proj else ""
+            self._build_params_tab.refresh(self._current_project_index, ue_ver)
 
         # 启动时输出已加载配置摘要到日志
         self._log_loaded_config()
@@ -141,6 +151,14 @@ class MainWindow(QMainWindow):
         self._current_project_index = index
         self._runner.set_project(index)
         self._log_widget.append_log("INFO", f"[项目切换] 当前项目: {self._config.projects[index].name}")
+        # 同步刷新打包参数标签页
+        proj = self._config.get_project(index)
+        ue_ver = proj.ue5_version if proj else ""
+        self._build_params_tab.refresh(index, ue_ver)
+
+    def _on_build_params_selection_changed(self, proj_index: int, ue_ver: str):
+        """配置管理页面切换 UE 版本或项目时同步刷新打包参数"""
+        self._build_params_tab.refresh(proj_index, ue_ver)
 
     # ---- 日志 ----
 

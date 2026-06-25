@@ -15,10 +15,16 @@ from PySide6.QtWidgets import (
     QCheckBox, QPlainTextEdit, QSizePolicy, QGridLayout, QFrame,
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QWheelEvent
 from pathlib import Path
 
-from config_manager import ConfigManager, UE5VersionConfig, ProjectConfig
+
+class NoScrollComboBox(QComboBox):
+    """屏蔽滚轮事件的 QComboBox，只能通过点击下拉选择"""
+    def wheelEvent(self, event: QWheelEvent):
+        event.ignore()
+
+from config_manager import ConfigManager, UE5VersionConfig, ProjectConfig, read_shader_formats_list_from_ini
 from step_runner import PSO_REQUIRED_CONFIGS
 
 # ---- 命令行参数行定义 ----
@@ -35,7 +41,8 @@ _FIRST_FINAL_PARAMS = [
               ("发布 (Shipping)", "Shipping"),
               ("测试 (Test)", "Test")]),
     ParamRow("输出目录", "-archivedirectory", "output_dir", "readonly", None),
-    ParamRow("Shader格式", "-ShaderFormats", "shader_formats", "readonly", None),
+    ParamRow("Shader格式", "-ShaderFormats", "shader_formats", "combo",
+             [("PCD3D_SM6", "PCD3D_SM6")]),
     ParamRow("引擎EXE", "-unrealexe", "unreal_exe", "readonly", None),
     ParamRow("编译", "-compile", "compile", "check", None),
     ParamRow("构建", "-build", "build", "check", None),
@@ -70,46 +77,11 @@ def _read_engine_association(uproject_path: Path) -> str | None:
         return None
 
 
-def _read_shader_formats_from_ini(project_dir: str | None) -> str:
-    """从 DefaultEngine.ini 的 WindowsTargetSettings 段解析 Shader 格式
-
-    解析 [WindowsTargetPlatform.WindowsTargetSettings] 下的：
-        +D3D12TargetedShaderFormats=PCD3D_SM6
-        +D3D11TargetedShaderFormats=PCD3D_SM6
-    返回 "PCD3D_SM6+PCD3D_SM5" 格式字符串（供 -ShaderFormats 使用）
-    """
-    if not project_dir:
-        return "PCD3D_SM6"
-    ini_path = Path(project_dir) / "Config" / "DefaultEngine.ini"
-    if not ini_path.exists():
-        return "PCD3D_SM6"
-    try:
-        content = ini_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return "PCD3D_SM6"
-
-    # 定位 [WindowsTargetPlatform.WindowsTargetSettings] 段
-    m_section = re.search(
-        r'\[/Script/WindowsTargetPlatform\.WindowsTargetSettings\](.*?)(?=\[|$)',
-        content, re.DOTALL | re.IGNORECASE
-    )
-    if not m_section:
-        return "PCD3D_SM6"
-    section = m_section.group(1)
-
-    # 提取所有 +TargetedShaderFormats 配置行
-    formats = set()
-    for m in re.finditer(r'^\+.*TargetedShaderFormats\s*=\s*(\S+)', section, re.MULTILINE):
-        formats.add(m.group(1).strip())
-    if not formats:
-        return "PCD3D_SM6"
-    return "+".join(sorted(formats))
-
-
 class ConfigTab(QWidget):
     """配置管理标签页"""
 
     config_changed = Signal()
+    selection_changed = Signal(int, str)  # (project_index, ue5_version)
 
     def __init__(self, config: ConfigManager, parent=None):
         super().__init__(parent)
@@ -121,10 +93,6 @@ class ConfigTab(QWidget):
         self._mid_engine_labels: dict[str, QLabel] = {}
         self._mid_game_labels: dict[str, QLabel] = {}
         self._mid_pso_checks: list[QCheckBox] = []
-        # 参数表格行：{value_key: (desc_label, value_widget, browse_btn or None)}
-        self._mid_first_build_rows: dict[str, tuple] = {}
-        self._mid_cache_convert_rows: dict[str, tuple] = {}
-        self._mid_final_build_rows: dict[str, tuple] = {}
         self._mid_scroll: QScrollArea = None
 
         self._setup_ui()
@@ -225,7 +193,7 @@ class ConfigTab(QWidget):
         self._proj_name = QLineEdit()
         proj_form_layout.addRow("项目名称:", self._proj_name)
 
-        self._proj_ue_version = QComboBox()
+        self._proj_ue_version = NoScrollComboBox()
         self._proj_ue_version.setEditable(False)
         proj_form_layout.addRow("关联 UE 版本:", self._proj_ue_version)
 
@@ -303,9 +271,9 @@ class ConfigTab(QWidget):
         right_layout.addWidget(proj_form_group)
 
         splitter.addWidget(right_panel)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 2)
-        splitter.setStretchFactor(2, 2)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 3)
+        splitter.setStretchFactor(2, 3)
 
         layout.addWidget(splitter)
 
@@ -375,33 +343,6 @@ class ConfigTab(QWidget):
                     self._mid_pso_checks.append(cb)
         cl.addWidget(pg)
 
-        # Part 4: 首次打包内容
-        fbg = QGroupBox("首次打包内容")
-        fbl = QVBoxLayout(fbg)
-        fbl.setSpacing(2)
-        self._mid_first_build_rows = self._create_param_table(_FIRST_FINAL_PARAMS)
-        for widget in self._mid_first_build_rows.values():
-            fbl.addWidget(widget[0])  # row_widget
-        cl.addWidget(fbg)
-
-        # Part 5: 转换缓存
-        cg = QGroupBox("转换缓存")
-        cgl = QVBoxLayout(cg)
-        cgl.setSpacing(2)
-        self._mid_cache_convert_rows = self._create_param_table(_CACHE_CONVERT_PARAMS)
-        for widget in self._mid_cache_convert_rows.values():
-            cgl.addWidget(widget[0])  # row_widget
-        cl.addWidget(cg)
-
-        # Part 6: 最终打包
-        fg = QGroupBox("最终打包")
-        fgl = QVBoxLayout(fg)
-        fgl.setSpacing(2)
-        self._mid_final_build_rows = self._create_param_table(_FIRST_FINAL_PARAMS)
-        for widget in self._mid_final_build_rows.values():
-            fgl.addWidget(widget[0])  # row_widget
-        cl.addWidget(fg)
-
         cl.addStretch()
         self._mid_scroll.setWidget(content)
 
@@ -411,106 +352,11 @@ class ConfigTab(QWidget):
         wl.addWidget(self._mid_scroll)
         return wrapper
 
-    def _create_param_table(self, param_defs: list) -> dict:
-        """创建参数表格行，返回 {value_key: (row_widget, value_widget, browse_btn_or_None)}"""
-        rows = {}
-        for pd in param_defs:
-            row_widget = QWidget()
-            row = QHBoxLayout(row_widget)
-            row.setContentsMargins(4, 1, 4, 1)
-            row.setSpacing(4)
-
-            # 功能描述列
-            desc_lbl = QLabel(pd.desc)
-            desc_lbl.setFixedWidth(72)
-            desc_lbl.setStyleSheet("color: #AAAAAA; font-size: 12px;")
-            desc_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            row.addWidget(desc_lbl)
-
-            # 参数名列
-            flag_lbl = QLabel(pd.flag)
-            flag_lbl.setFixedWidth(130)
-            flag_lbl.setStyleSheet("color: #4FC3F7; font-size: 11px; font-family: Consolas;")
-            row.addWidget(flag_lbl)
-
-            value_widget = None
-            browse_btn = None
-
-            if pd.widget_type == "check":
-                cb = QCheckBox()
-                cb.setStyleSheet("QCheckBox::indicator { width: 14px; height: 14px; }")
-                row.addWidget(cb)
-                row.addStretch()
-                rows[pd.value_key] = (row_widget, cb, None)
-                continue
-
-            # 下拉单选
-            if pd.widget_type == "combo":
-                cmb = QComboBox()
-                cmb.setStyleSheet(
-                    "QComboBox { background-color: #252525; color: #CCCCCC; border: 1px solid #3D3D3D;"
-                    " border-radius: 2px; padding: 1px 6px; font-size: 11px; min-height: 22px; }"
-                    "QComboBox:hover { border: 1px solid #4FC3F7; }"
-                    "QComboBox QAbstractItemView { background-color: #252525; color: #CCCCCC;"
-                    " border: 1px solid #3D3D3D; selection-background-color: #333333; }"
-                )
-                if pd.choices:
-                    for display, value in pd.choices:
-                        cmb.addItem(display, value)
-                row.addWidget(cmb, stretch=1)
-                rows[pd.value_key] = (row_widget, cmb, None)
-                continue
-
-            # 值输入框
-            if pd.widget_type == "readonly":
-                le = QLineEdit()
-                le.setReadOnly(True)
-                le.setStyleSheet(
-                    "QLineEdit { background-color: #2A2A2A; color: #888888; border: 1px solid #3D3D3D;"
-                    " border-radius: 2px; padding: 2px 6px; font-size: 11px; font-family: Consolas; }"
-                )
-            else:
-                le = QLineEdit()
-                le.setStyleSheet(
-                    "QLineEdit { background-color: #252525; color: #CCCCCC; border: 1px solid #3D3D3D;"
-                    " border-radius: 2px; padding: 2px 6px; font-size: 11px; font-family: Consolas; }"
-                    "QLineEdit:focus { border: 1px solid #4FC3F7; }"
-                )
-            le.setMinimumHeight(22)
-            row.addWidget(le, stretch=1)
-            value_widget = le
-
-            # 浏览按钮（仅路径类型）
-            if pd.widget_type in ("path_file", "path_dir"):
-                browse_btn = QPushButton("...")
-                browse_btn.setFixedSize(24, 22)
-                browse_btn.setStyleSheet(
-                    "QPushButton { background-color: #333333; color: #AAAAAA; border: 1px solid #3D3D3D;"
-                    " border-radius: 2px; font-size: 10px; padding: 0; }"
-                    "QPushButton:hover { background-color: #444444; color: #CCCCCC; }"
-                )
-                if pd.widget_type == "path_file":
-                    filter_str = (
-                        "UProject Files (*.uproject)" if pd.value_key == "project"
-                        else "SPC Files (*.spc);;All Files (*)"
-                    )
-                    browse_btn.clicked.connect(lambda checked, e=le, f=filter_str: self._browse_file(e, f))
-                else:
-                    browse_btn.clicked.connect(lambda checked, e=le: self._browse_dir(e))
-                row.addWidget(browse_btn)
-
-            rows[pd.value_key] = (row_widget, value_widget, browse_btn)
-
-        return rows
-
     def _refresh_middle_panel(self):
-        """刷新中间面板全部 6 组内容"""
+        """刷新中间面板 3 组内容"""
         self._populate_engine_config()
         self._populate_game_config()
         self._populate_pso_config_check()
-        self._populate_first_build_params()
-        self._populate_cache_convert_params()
-        self._populate_final_build_params()
 
     def _populate_engine_config(self):
         if not self._mid_engine_labels:
@@ -531,9 +377,10 @@ class ConfigTab(QWidget):
                "#4ECB71" if ue.install_dir else "#888888")
             _s("RunUAT.bat", ue.uat_bat_path or "—（自动推导）",
                "#4ECB71" if ue.uat_bat_path else "#888888")
-            # 从项目的 DefaultEngine.ini 实际读取 Shader 格式
+            # 从项目的 DefaultEngine.ini 实际读取 Shader 格式列表
             proj = self._config.get_project(self._current_project_index)
-            sf = _read_shader_formats_from_ini(proj.project_dir) if proj else "PCD3D_SM6"
+            sf_list = read_shader_formats_list_from_ini(proj.project_dir) if proj else ["PCD3D_SM6"]
+            sf = ", ".join(sf_list)
             _s("Shader 格式", sf, "#4ECB71")
         else:
             for k in self._mid_engine_labels:
@@ -594,8 +441,8 @@ class ConfigTab(QWidget):
                 section_content = ""
                 if ini_exists:
                     m = re.search(
-                        rf'\[{re.escape(section_name)}\](.*?)(?=\[|$)',
-                        content, re.DOTALL | re.IGNORECASE
+                        rf'\[{re.escape(section_name)}\](.*?)(?=^\s*\[|\Z)',
+                        content, re.DOTALL | re.MULTILINE | re.IGNORECASE
                     )
                     if m:
                         section_content = m.group(1)
@@ -613,7 +460,7 @@ class ConfigTab(QWidget):
                         )
                     else:
                         key_m = re.search(
-                            rf'^[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
+                            rf'^\s*[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
                             section_content, re.MULTILINE | re.IGNORECASE
                         )
                         if key_m:
@@ -637,102 +484,6 @@ class ConfigTab(QWidget):
                                 "QCheckBox::indicator { width: 14px; height: 14px; }"
                             )
                     idx += 1
-
-    def _populate_first_build_params(self):
-        """填充首次打包参数表格"""
-        self._populate_uat_params(self._mid_first_build_rows)
-
-    def _populate_final_build_params(self):
-        """填充最终打包参数表格"""
-        self._populate_uat_params(self._mid_final_build_rows)
-
-    def _populate_uat_params(self, rows: dict):
-        """填充 UAT BuildCookRun 参数行"""
-        proj = self._config.get_project(self._current_project_index)
-        ver = self._current_ue5_version
-        ue = self._config.ue5_versions.get(ver) if ver else None
-
-        if not proj or not ue:
-            self._clear_param_rows(rows)
-            return
-
-        # 从 DefaultEngine.ini 实际读取 Shader 格式（不可修改）
-        sf = _read_shader_formats_from_ini(proj.project_dir)
-
-        defaults = {
-            "project":       proj.uproject_file or "",
-            "platform":      proj.target_platform or "Win64",
-            "config":        "Development",
-            "output_dir":    proj.output_dir or "",
-            "shader_formats": sf,
-            "unreal_exe":    ue.editor_cmd_path or "",
-            "compile":       True, "build": True, "cook": True,
-            "stage":         True, "pak": True, "archive": True,
-            "crash_reporter": True, "utf8_output": True,
-        }
-        self._fill_param_rows(rows, defaults, proj, ue)
-
-    def _populate_cache_convert_params(self):
-        """填充转换缓存参数表格"""
-        proj = self._config.get_project(self._current_project_index)
-        ver = self._current_ue5_version
-        ue = self._config.ue5_versions.get(ver) if ver else None
-        rows = self._mid_cache_convert_rows
-
-        if not proj or not ue:
-            self._clear_param_rows(rows)
-            return
-
-        defaults = {
-            "project":    proj.uproject_file or "",
-            "run_cmd":    "ShaderPipelineCacheTools expand",
-            "rec_source": proj.resolve_rec_source_dir(),
-            "shk_source": proj.resolve_shk_source_dir(),
-            "spc_target": proj.resolve_spc_target_dir(),
-            "null_rhi":   True,
-            "unattended": True,
-        }
-        self._fill_param_rows(rows, defaults, proj, ue)
-
-    def _fill_param_rows(self, rows: dict, values: dict, proj, ue):
-        """将值填入参数行控件"""
-        for key, (row_widget, value_widget, browse_btn) in rows.items():
-            val = values.get(key)
-            if isinstance(value_widget, QCheckBox):
-                value_widget.setChecked(bool(val))
-            elif isinstance(value_widget, QComboBox):
-                value_widget.blockSignals(True)
-                if val is not None:
-                    idx = value_widget.findData(val)
-                    if idx >= 0:
-                        value_widget.setCurrentIndex(idx)
-                value_widget.blockSignals(False)
-            elif isinstance(value_widget, QLineEdit):
-                value_widget.blockSignals(True)
-                if val is None:
-                    value_widget.setText("")
-                    value_widget.setPlaceholderText("（请先完整配置）")
-                elif isinstance(val, bool):
-                    value_widget.setText(str(val))
-                else:
-                    value_widget.setText(str(val))
-                value_widget.blockSignals(False)
-            row_widget.setVisible(True)
-
-    def _clear_param_rows(self, rows: dict):
-        """清空参数行内容"""
-        for key, (row_widget, value_widget, browse_btn) in rows.items():
-            if isinstance(value_widget, QCheckBox):
-                value_widget.setChecked(False)
-            elif isinstance(value_widget, QComboBox):
-                value_widget.blockSignals(True)
-                value_widget.setCurrentIndex(0)
-                value_widget.blockSignals(False)
-            elif isinstance(value_widget, QLineEdit):
-                value_widget.blockSignals(True)
-                value_widget.setText("")
-                value_widget.setPlaceholderText("（请先完整配置项目和 UE 路径）")
-                value_widget.blockSignals(False)
 
     # ============================================================
     # 现有方法
@@ -789,9 +540,7 @@ class ConfigTab(QWidget):
         self._current_ue5_version = version
         self._render_ue_detail(version)
         self._populate_engine_config()
-        self._populate_first_build_params()
-        self._populate_cache_convert_params()
-        self._populate_final_build_params()
+        self.selection_changed.emit(self._current_project_index, version)
 
     def _render_ue_detail(self, version: str):
         ue = self._config.ue5_versions.get(version)
@@ -904,9 +653,7 @@ class ConfigTab(QWidget):
         self._render_proj_detail(index)
         self._populate_game_config()
         self._populate_pso_config_check()
-        self._populate_first_build_params()
-        self._populate_cache_convert_params()
-        self._populate_final_build_params()
+        self.selection_changed.emit(index, self._current_ue5_version)
 
     def _render_proj_detail(self, index: int):
         proj = self._config.get_project(index)
@@ -1116,3 +863,173 @@ class ConfigTab(QWidget):
         path, _ = QFileDialog.getOpenFileName(self, "选择文件", edit.text(), filter_str)
         if path:
             edit.setText(path)
+
+
+# ============================================================
+# 模块级工具函数（供 config_tab 和 build_params_tab 共用）
+# ============================================================
+
+def _browse_dir(parent: QWidget, edit: QLineEdit):
+    path = QFileDialog.getExistingDirectory(parent, "选择目录", edit.text())
+    if path:
+        edit.setText(path)
+
+
+def _browse_file(parent: QWidget, edit: QLineEdit, filter_str: str):
+    path, _ = QFileDialog.getOpenFileName(parent, "选择文件", edit.text(), filter_str)
+    if path:
+        edit.setText(path)
+
+
+def _create_param_table(param_defs: list, parent: QWidget, font_scale: float = 1.0) -> dict:
+    """创建参数表格行，返回 {value_key: (row_widget, value_widget, browse_btn_or_None)}
+
+    Args:
+        font_scale: 字体缩放系数，默认 1.0。打包参数标签页传入更大值以获得合适排版。
+    """
+    s = font_scale
+
+    def _px(v: float) -> int:
+        return max(1, round(v * s))
+
+    rows = {}
+    for pd in param_defs:
+        row_widget = QWidget()
+        row = QHBoxLayout(row_widget)
+        row.setContentsMargins(_px(4), _px(1), _px(4), _px(1))
+        row.setSpacing(_px(4))
+
+        # 功能描述列
+        desc_lbl = QLabel(pd.desc)
+        desc_lbl.setFixedWidth(_px(72))
+        desc_lbl.setStyleSheet(f"color: #AAAAAA; font-size: {_px(12)}px;")
+        desc_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        row.addWidget(desc_lbl)
+
+        # 参数名列
+        flag_lbl = QLabel(pd.flag)
+        flag_lbl.setFixedWidth(_px(130))
+        flag_lbl.setStyleSheet(f"color: #4FC3F7; font-size: {_px(11)}px; font-family: Consolas;")
+        row.addWidget(flag_lbl)
+
+        value_widget = None
+        browse_btn = None
+
+        if pd.widget_type == "check":
+            cb = QCheckBox()
+            cb.setStyleSheet(f"QCheckBox::indicator {{ width: {_px(14)}px; height: {_px(14)}px; }}")
+            row.addWidget(cb)
+            row.addStretch()
+            rows[pd.value_key] = (row_widget, cb, None)
+            continue
+
+        # 下拉单选
+        if pd.widget_type == "combo":
+            cmb_fs = _px(11)
+            cmb_mh = _px(22)
+            cmb = NoScrollComboBox()
+            cmb.setStyleSheet(
+                "QComboBox { background-color: #252525; color: #CCCCCC; border: 1px solid #3D3D3D;"
+                f" border-radius: 2px; padding: 1px 6px; font-size: {cmb_fs}px; min-height: {cmb_mh}px; }}"
+                "QComboBox:hover { border: 1px solid #4FC3F7; }"
+                "QComboBox QAbstractItemView { background-color: #252525; color: #CCCCCC;"
+                f" border: 1px solid #3D3D3D; selection-background-color: #333333; font-size: {cmb_fs}px; }}"
+            )
+            if pd.choices:
+                for display, value in pd.choices:
+                    cmb.addItem(display, value)
+            # Shader 格式选择变更时回调 parent 的 _on_shader_format_changed
+            if pd.value_key == "shader_formats" and hasattr(parent, "_on_shader_format_changed"):
+                cmb.currentIndexChanged.connect(parent._on_shader_format_changed)
+            row.addWidget(cmb, stretch=1)
+            rows[pd.value_key] = (row_widget, cmb, None)
+            continue
+
+        # 值输入框
+        le_fs = _px(11)
+        le_mh = _px(22)
+        if pd.widget_type == "readonly":
+            le = QLineEdit()
+            le.setReadOnly(True)
+            le.setStyleSheet(
+                "QLineEdit { background-color: #2A2A2A; color: #888888; border: 1px solid #3D3D3D;"
+                f" border-radius: 2px; padding: 2px 6px; font-size: {le_fs}px; font-family: Consolas; }}"
+            )
+        else:
+            le = QLineEdit()
+            le.setStyleSheet(
+                "QLineEdit { background-color: #252525; color: #CCCCCC; border: 1px solid #3D3D3D;"
+                f" border-radius: 2px; padding: 2px 6px; font-size: {le_fs}px; font-family: Consolas; }}"
+                "QLineEdit:focus { border: 1px solid #4FC3F7; }"
+            )
+        le.setMinimumHeight(le_mh)
+        row.addWidget(le, stretch=1)
+        value_widget = le
+
+        # 浏览按钮（仅路径类型）
+        if pd.widget_type in ("path_file", "path_dir"):
+            btn_fs = _px(10)
+            btn_w = _px(24)
+            btn_h = _px(22)
+            browse_btn = QPushButton("...")
+            browse_btn.setFixedSize(btn_w, btn_h)
+            browse_btn.setStyleSheet(
+                "QPushButton { background-color: #333333; color: #AAAAAA; border: 1px solid #3D3D3D;"
+                f" border-radius: 2px; font-size: {btn_fs}px; padding: 0; }}"
+                "QPushButton:hover { background-color: #444444; color: #CCCCCC; }"
+            )
+            if pd.widget_type == "path_file":
+                filter_str = (
+                    "UProject Files (*.uproject)" if pd.value_key == "project"
+                    else "SPC Files (*.spc);;All Files (*)"
+                )
+                browse_btn.clicked.connect(lambda checked, e=le, f=filter_str: _browse_file(parent, e, f))
+            else:
+                browse_btn.clicked.connect(lambda checked, e=le: _browse_dir(parent, e))
+            row.addWidget(browse_btn)
+
+        rows[pd.value_key] = (row_widget, value_widget, browse_btn)
+
+    return rows
+
+
+def _fill_param_rows(rows: dict, values: dict):
+    """将值填入参数行控件"""
+    for key, (row_widget, value_widget, browse_btn) in rows.items():
+        val = values.get(key)
+        if isinstance(value_widget, QCheckBox):
+            value_widget.setChecked(bool(val))
+        elif isinstance(value_widget, QComboBox):
+            value_widget.blockSignals(True)
+            if val is not None:
+                idx = value_widget.findData(val)
+                if idx >= 0:
+                    value_widget.setCurrentIndex(idx)
+            value_widget.blockSignals(False)
+        elif isinstance(value_widget, QLineEdit):
+            value_widget.blockSignals(True)
+            if val is None:
+                value_widget.setText("")
+                value_widget.setPlaceholderText("（请先完整配置）")
+            elif isinstance(val, bool):
+                value_widget.setText(str(val))
+            else:
+                value_widget.setText(str(val))
+            value_widget.blockSignals(False)
+        row_widget.setVisible(True)
+
+
+def _clear_param_rows(rows: dict):
+    """清空参数行内容"""
+    for key, (row_widget, value_widget, browse_btn) in rows.items():
+        if isinstance(value_widget, QCheckBox):
+            value_widget.setChecked(False)
+        elif isinstance(value_widget, QComboBox):
+            value_widget.blockSignals(True)
+            value_widget.setCurrentIndex(0)
+            value_widget.blockSignals(False)
+        elif isinstance(value_widget, QLineEdit):
+            value_widget.blockSignals(True)
+            value_widget.setText("")
+            value_widget.setPlaceholderText("（请先完整配置项目和 UE 路径）")
+            value_widget.blockSignals(False)

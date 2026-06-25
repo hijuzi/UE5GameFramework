@@ -16,7 +16,7 @@ from typing import Optional, Callable
 
 from PySide6.QtCore import QObject, Signal
 
-from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig
+from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig, read_shader_formats_from_ini
 from step_definitions import StepStatus
 
 
@@ -316,7 +316,10 @@ class StepRunner(QObject):
             self._ini_fix_event.set()
 
     def _write_ini_config(self, fix_items: list[dict]) -> bool:
-        """将缺失/不正确的 PSO 配置写入 INI 文件，返回是否全部成功"""
+        """将缺失/不正确的 PSO 配置写入 INI 文件，返回是否全部成功
+
+        策略：先用正则精确插入，写盘后立即读回验证；验证失败则回退到逐行方式强制写入。
+        """
         proj_dir = Path(self._project.project_dir)
         config_dir = proj_dir / "Config"
         config_dir.mkdir(parents=True, exist_ok=True)
@@ -330,9 +333,12 @@ class StepRunner(QObject):
 
         for filename, items in by_file.items():
             ini_path = config_dir / filename
+            self._log("INFO", f"  目标文件: {ini_path}")
 
             # 读取现有内容（文件可能不存在）
             content = ini_path.read_text(encoding="utf-8", errors="replace") if ini_path.exists() else ""
+            # 修复损坏格式：key=value[next_section] 缺少换行
+            content = self._normalize_ini(content)
 
             for item in items:
                 section_name = item["section"]
@@ -354,9 +360,9 @@ class StepRunner(QObject):
                     section_end = next_match.start() if next_match else len(content)
                     section_body = content[section_start:section_end]
 
-                    # 查找 key
+                    # 查找 key（允许前导空白 + 可选 +/-/. 前缀）
                     key_pattern = re.compile(
-                        rf'^[+\-.]?{re.escape(key)}\s*=\s*.*',
+                        rf'^\s*[+\-.]?{re.escape(key)}\s*=\s*.*',
                         re.MULTILINE | re.IGNORECASE
                     )
                     key_match = key_pattern.search(section_body)
@@ -369,25 +375,166 @@ class StepRunner(QObject):
                         if full_pos >= 0:
                             content = content[:full_pos] + new_line + content[full_pos + len(old_line):]
                     else:
-                        # 在 section 末尾插入新 key
+                        # 在 section 末尾插入新 key（确保前后有换行）
                         insert_pos = section_end
-                        # 确保换行分隔
                         prefix = "" if content[max(0, insert_pos - 1):insert_pos] == "\n" else "\n"
-                        content = content[:insert_pos] + f"{prefix}{key}={value}" + content[insert_pos:]
+                        # 确保 key=value 后面也有换行，避免与下一节拼接
+                        suffix = "\n" if insert_pos < len(content) and content[insert_pos] != "\n" else ""
+                        content = content[:insert_pos] + f"{prefix}{key}={value}{suffix}" + content[insert_pos:]
                 else:
                     # Section 不存在 — 追加到文件末尾
                     if content and not content.endswith("\n"):
                         content += "\n"
                     content += f"\n[{section_name}]\n{key}={value}\n"
 
+            # ---- 写盘 + 立即读回验证 ----
             try:
                 ini_path.write_text(content, encoding="utf-8")
-                self._log("SUCCESS", f"  已写入 {filename}: {len(items)} 项 PSO 配置")
             except Exception as e:
                 self._log("ERROR", f"  写入 {filename} 失败: {e}")
                 all_ok = False
+                continue
+
+            # 读回验证：确认每个 key 确实出现在文件中
+            written_content = ini_path.read_text(encoding="utf-8", errors="replace")
+            missing_after_write: list[dict] = []
+            for item in items:
+                section_name = item["section"]
+                key = item["key"]
+                # 使用与 recheck 相同的正则进行验证
+                sec_m = re.search(
+                    rf'\[{re.escape(section_name)}\](.*?)(?=^\s*\[|\Z)',
+                    written_content, re.DOTALL | re.MULTILINE | re.IGNORECASE
+                )
+                if not sec_m:
+                    missing_after_write.append(item)
+                    continue
+                sec_body = sec_m.group(1)
+                key_m = re.search(
+                    rf'^\s*[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
+                    sec_body, re.MULTILINE | re.IGNORECASE
+                )
+                if not key_m:
+                    missing_after_write.append(item)
+
+            if missing_after_write:
+                self._log("WARNING",
+                    f"  正则写入后 {len(missing_after_write)}/{len(items)} 项未找到，"
+                    f"回退到逐行方式…")
+                content = self._force_write_keys(
+                    written_content, missing_after_write
+                )
+                try:
+                    ini_path.write_text(content, encoding="utf-8")
+                except Exception as e:
+                    self._log("ERROR", f"  逐行写入 {filename} 失败: {e}")
+                    all_ok = False
+                    continue
+
+            # 最终验证
+            final_content = ini_path.read_text(encoding="utf-8", errors="replace")
+            final_missing = []
+            for item in items:
+                sec_m = re.search(
+                    rf'\[{re.escape(item["section"])}\](.*?)(?=^\s*\[|\Z)',
+                    final_content, re.DOTALL | re.MULTILINE | re.IGNORECASE
+                )
+                if sec_m and re.search(
+                    rf'^\s*[+\-.]?{re.escape(item["key"])}\s*=\s*(.*)$',
+                    sec_m.group(1), re.MULTILINE | re.IGNORECASE
+                ):
+                    continue
+                final_missing.append(item["key"])
+
+            if final_missing:
+                self._log("ERROR",
+                    f"  写入 {filename} 最终仍有 {len(final_missing)} 项缺失: {final_missing}")
+                all_ok = False
+            else:
+                self._log("SUCCESS", f"  已写入并验证 {filename}: {len(items)} 项")
 
         return all_ok
+
+    # ------------------------------------------------------------------
+    def _force_write_keys(self, content: str, items: list[dict]) -> str:
+        """逐行方式强制写入配置项（回退方案，不依赖正则定位）
+
+        按 section 分组；找到 section 头行后，在下一节头之前（或文件末尾）插入缺失的 key。
+        """
+        lines = content.splitlines(keepends=False)
+        # 先按 section 分组要插入的条目
+        by_section: dict[str, list[dict]] = {}
+        for it in items:
+            by_section.setdefault(it["section"].lower(), []).append(it)
+
+        for section_lower, section_items in by_section.items():
+            section_head_idx = -1
+            for i, line in enumerate(lines):
+                if line.strip().lower() == f"[{section_lower}]":
+                    section_head_idx = i
+                    break
+
+            if section_head_idx < 0:
+                # 节不存在 — 追加到文件末尾
+                lines.append("")
+                lines.append(f"[{section_items[0]['section']}]")
+                for it in section_items:
+                    lines.append(f"{it['key']}={it['value']}")
+                continue
+
+            # 查找节结束位置（下一个 [Section] 行）
+            section_end_idx = len(lines)
+            for j in range(section_head_idx + 1, len(lines)):
+                if lines[j].strip().startswith("["):
+                    section_end_idx = j
+                    break
+
+            # 收集节内已有的 key（去除 +/-/. 前缀 + 前后空白）
+            existing_keys_lower: set[str] = set()
+            for j in range(section_head_idx + 1, section_end_idx):
+                stripped = lines[j].strip()
+                if "=" in stripped and not stripped.startswith(";") and not stripped.startswith("//"):
+                    eq_pos = stripped.index("=")
+                    raw_key = stripped[:eq_pos].strip()
+                    # 去掉前导 +/-/. 前缀
+                    clean = re.sub(r'^[+\-.]', '', raw_key).lower()
+                    existing_keys_lower.add(clean)
+
+            # 只插入缺失的 key（插入位置：节末尾行之后、下一节之前）
+            to_insert: list[str] = []
+            for it in section_items:
+                if it["key"].lower() not in existing_keys_lower:
+                    to_insert.append(f"{it['key']}={it['value']}")
+
+            if not to_insert:
+                continue
+
+            # 确保节末尾有空行分隔（如果下一节紧挨着）
+            insert_idx = section_end_idx
+            lines = lines[:insert_idx] + to_insert + lines[insert_idx:]
+
+            # 如果节末尾和插入内容紧贴下一节，添加空行
+            if insert_idx < len(lines) and lines[insert_idx - 1].strip() and len(to_insert) > 0:
+                lines.insert(insert_idx, "")
+
+        return "\n".join(lines)
+
+    @staticmethod
+    def _normalize_ini(content: str) -> str:
+        """修复 INI 文件常见格式损坏：section 头缺少前导换行
+
+        例如 ``r.X.LogPSO=1[/Script/Mac.XcodeProjectSettings]``
+        →  ``r.X.LogPSO=1\n[/Script/Mac.XcodeProjectSettings]``
+
+        仅修复以字母或 / 开头的 section 头（避免误触值内的 [）。
+        """
+        if not content:
+            return content
+        # 匹配非行首的 [，且后面紧跟字母或 /（即为真实的 section 头）
+        content = re.sub(
+            r'(?<=[^\n])(?=\[[A-Za-z/])', '\n', content
+        )
+        return content
 
     def _is_editor_running(self) -> Optional[str]:
         """检测 UE Editor 是否在运行，返回进程名或 None"""
@@ -501,6 +648,14 @@ class StepRunner(QObject):
                 self._log("ERROR", f"步骤 {step_index} 失败，停止后续步骤")
                 break
         self.all_done_signal.emit()
+
+    # 供 BuildParamsTab / WorkflowTab 通过 QThread.started 信号调用
+    # （必须是 QObject 绑定方法，AutoConnection 才会正确在 worker thread 执行）
+    _pending_step: int = -1
+
+    def _execute_pending_step(self):
+        """由 QThread.started 触发，在 worker thread 中执行 _pending_step"""
+        self.run_step(self._pending_step)
 
     def run_step(self, step_index: int) -> bool:
         """执行单个步骤，返回是否成功"""
@@ -780,12 +935,13 @@ class StepRunner(QObject):
                 continue
 
             content = ini_path.read_text(encoding="utf-8", errors="replace")
+            content = self._normalize_ini(content)  # 修复损坏格式
 
             # 按 section 分组检查
             for section_name, configs in sections.items():
                 section_pattern = re.compile(
-                    rf'\[{re.escape(section_name)}\](.*?)(?=\[|$)',
-                    re.DOTALL | re.IGNORECASE
+                    rf'\[{re.escape(section_name)}\](.*?)(?=^\s*\[|\Z)',
+                    re.DOTALL | re.MULTILINE | re.IGNORECASE
                 )
                 match = section_pattern.search(content)
 
@@ -812,7 +968,7 @@ class StepRunner(QObject):
                 for key, expected_value, description in configs:
                     checked_count += 1
                     key_pattern = re.compile(
-                        rf'^[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
+                        rf'^\s*[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
                         re.MULTILINE | re.IGNORECASE
                     )
                     key_match = key_pattern.search(section_content)
@@ -893,7 +1049,7 @@ class StepRunner(QObject):
         return False
 
     def _recheck_ini_after_fix(self) -> bool:
-        """写入 INI 后重新检查配置是否正确，只检查缺失/错误项"""
+        """写入 INI 后重新检查配置是否正确"""
         proj_dir = Path(self._project.project_dir)
         config_dir = proj_dir / "Config"
         if not config_dir.exists():
@@ -905,16 +1061,17 @@ class StepRunner(QObject):
         for ini_filename, sections in PSO_REQUIRED_CONFIGS.items():
             ini_path = config_dir / ini_filename
             if not ini_path.exists():
-                self._log("ERROR", f"  {ini_filename} 文件仍不存在")
+                self._log("ERROR", f"  {ini_filename} 文件仍不存在  ({ini_path})")
                 all_ok = False
                 continue
 
             content = ini_path.read_text(encoding="utf-8", errors="replace")
+            content = self._normalize_ini(content)  # 修复损坏格式
 
             for section_name, configs in sections.items():
                 section_pattern = re.compile(
-                    rf'\[{re.escape(section_name)}\](.*?)(?=\[|$)',
-                    re.DOTALL | re.IGNORECASE
+                    rf'\[{re.escape(section_name)}\](.*?)(?=^\s*\[|\Z)',
+                    re.DOTALL | re.MULTILINE | re.IGNORECASE
                 )
                 match = section_pattern.search(content)
 
@@ -927,7 +1084,7 @@ class StepRunner(QObject):
 
                 for key, expected_value, description in configs:
                     key_pattern = re.compile(
-                        rf'^[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
+                        rf'^\s*[+\-.]?{re.escape(key)}\s*=\s*(.*)$',
                         re.MULTILINE | re.IGNORECASE
                     )
                     key_match = key_pattern.search(section_content)
@@ -956,7 +1113,7 @@ class StepRunner(QObject):
         if self._project:
             self._add_step_detail(f"项目: {self._project.name}")
             self._add_step_detail(f"平台: {self._project.target_platform}")
-            self._add_step_detail(f"Shader 格式: {', '.join(self._project.shader_formats)}")
+            self._add_step_detail(f"Shader 格式: {read_shader_formats_from_ini(self._project.project_dir)}")
             self._add_step_detail(f"输出: {self._project.output_dir}")
 
             # 首次打包前清理旧的打包输出和 Cook 缓存，确保干净构建
@@ -1767,7 +1924,7 @@ class StepRunner(QObject):
         uproject = self._project.uproject_file
         output_dir = self._project.output_dir
         platform = self._project.target_platform
-        shader_formats = "+".join(self._project.shader_formats)
+        shader_formats = read_shader_formats_from_ini(self._project.project_dir)
 
         cmd = (
             f'"{self._ue5.uat_bat_path}"'
