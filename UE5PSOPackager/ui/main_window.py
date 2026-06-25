@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
         self._tab_widget.addTab(self._config_tab, "配置管理")
 
         self._build_params_tab = BuildParamsTab(self._config, self._runner)
-        self._tab_widget.addTab(self._build_params_tab, "打包参数")
+        self._tab_widget.addTab(self._build_params_tab, "参数管理")
 
         self._workflow_tab = WorkflowTab(self._runner)
         self._workflow_tab.log_signal.connect(self._on_log)
@@ -165,8 +165,8 @@ class MainWindow(QMainWindow):
     def _on_log(self, level: str, message: str):
         self._log_widget.append_log(level, message)
 
-        # 分流到日志归档面板（仅打包相关步骤 2/6/8）
-        if self._current_running_step in (2, 6, 8):
+        # 分流到日志归档面板（打包/PSO收集相关步骤 2/3/6/8）
+        if self._current_running_step in (2, 3, 6, 8):
             self._log_issue_widget.append_phase_log(self._current_running_step, level, message)
 
     def _on_command(self, step_index: int, cmd: str):

@@ -12,8 +12,9 @@ from PySide6.QtGui import QTextCharFormat, QColor, QFont
 from PySide6.QtCore import Qt
 
 
-# 三个阶段与 Step 索引的映射
+# 四个阶段与 Step 索引的映射
 PHASE_STEPS = {
+    "PSO 收集": 3,
     "首次打包": 2,
     "转换缓存": 6,
     "最终打包": 8,
@@ -48,6 +49,7 @@ class LogIssueWidget(QWidget):
         # 每个阶段独立存储日志: step_index -> [(level, message), ...]
         self._phase_buffers: dict[int, list[tuple[str, str]]] = {
             2: [],  # 首次打包
+            3: [],  # PSO 收集
             6: [],  # 转换缓存
             8: [],  # 最终打包
         }
@@ -55,6 +57,7 @@ class LogIssueWidget(QWidget):
         # 每个阶段存储完整的指令文本
         self._phase_commands: dict[int, str] = {
             2: "",
+            3: "",
             6: "",
             8: "",
         }
@@ -104,7 +107,7 @@ class LogIssueWidget(QWidget):
 
         self._phase_combo = QComboBox()
         self._phase_combo.setMinimumWidth(140)
-        self._phase_combo.addItems(["首次打包", "转换缓存", "最终打包"])
+        self._phase_combo.addItems(["PSO 收集", "首次打包", "转换缓存", "最终打包"])
         self._phase_combo.currentTextChanged.connect(self._on_phase_changed)
         control_bar.addWidget(self._phase_combo)
 

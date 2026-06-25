@@ -7,6 +7,7 @@
 #include "LoadingScreenManager.h"
 #include "Core/PrimaryGameUILayout.h"
 #include "GameplayTags/CommonGameplayTags.h"
+#include "PSOCacheManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSVExperience, Log, All);
 
@@ -188,6 +189,31 @@ void USVExperienceManagerComponent::OnExperienceLoaded()
 	Flow.ExecuteFlow();
 
 	FrontEndFlow = Flow.AsShared();
+}
+
+
+
+void USVExperienceManagerComponent::FlowStep_TryShowCompilingShadersScreen(FControlFlowNodeRef SubFlow)
+{
+	// 检查 PSO 是否已全部预编译完成，如果已完成则跳过着色器编译界面
+	if (UWorld* World = GetWorld())
+	{
+		if (UGameInstance* GameInstance = World->GetGameInstance())
+		{
+			if (UPSOCacheManager* PSOCacheMgr = GameInstance->GetSubsystem<UPSOCacheManager>())
+			{
+				const int32 Remaining = PSOCacheMgr->GetPrecompilesRemaining();
+				if (Remaining == 0)
+				{
+					UE_LOG(LogSVExperience, Log, TEXT("PSO 预编译已完成，跳过着色器编译界面"));
+					SubFlow->ContinueFlow();
+					return;
+				}
+				UE_LOG(LogSVExperience, Log, TEXT("PSO 剩余 %d 个待预编译，显示着色器编译界面"), Remaining);
+			}
+		}
+	}
+	TryPushWidgetToLayer(SubFlow, CompilingShadersScreenClass, true);
 }
 
 void USVExperienceManagerComponent::TryPushWidgetToLayer(FControlFlowNodeRef SubFlow, const TSoftClassPtr<UCommonActivatableWidget>& ScreenClass, bool bWaitForDeactivation)

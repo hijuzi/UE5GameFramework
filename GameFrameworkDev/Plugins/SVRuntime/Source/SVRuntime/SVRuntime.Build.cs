@@ -49,6 +49,7 @@ public class SVRuntime : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"PSOCacheSystem",
 			}
 			);
 		

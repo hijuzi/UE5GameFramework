@@ -38,10 +38,14 @@ public class PSOCacheSystem : ModuleRules
 				"Engine",
 				"Projects",
 				"RHI",
+				"Renderer",
+				"RenderCore",
 				"Niagara",
 				"AssetRegistry",
 				"Slate",
 				"SlateCore",
+				"UMG",
+				"DeveloperSettings",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

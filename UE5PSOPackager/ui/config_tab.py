@@ -3,7 +3,9 @@ ConfigTab - 配置管理标签页
 UE 版本管理 + 项目配置管理，支持多 UE 版本和多项目切换
 """
 import json
+import os
 import re
+import subprocess
 from collections import namedtuple
 
 from PySide6.QtWidgets import (
@@ -41,8 +43,7 @@ _FIRST_FINAL_PARAMS = [
               ("发布 (Shipping)", "Shipping"),
               ("测试 (Test)", "Test")]),
     ParamRow("输出目录", "-archivedirectory", "output_dir", "readonly", None),
-    ParamRow("Shader格式", "-ShaderFormats", "shader_formats", "combo",
-             [("PCD3D_SM6", "PCD3D_SM6")]),
+    ParamRow("Shader格式", "-ShaderFormats", "shader_formats", "combo", []),
     ParamRow("引擎EXE", "-unrealexe", "unreal_exe", "readonly", None),
     ParamRow("编译", "-compile", "compile", "check", None),
     ParamRow("构建", "-build", "build", "check", None),
@@ -62,6 +63,12 @@ _CACHE_CONVERT_PARAMS = [
     ParamRow("目标SPC", "", "spc_target", "readonly", None),
     ParamRow("NullRHI", "-NullRHI", "null_rhi", "check", None),
     ParamRow("无交互", "-unattended", "unattended", "check", None),
+]
+
+_PSO_COLLECT_PARAMS = [
+    ParamRow("游戏路径", "", "game_exe", "readonly", None),
+    ParamRow("自动收集PSO记录", "-psosysautocoverage", "auto_coverage", "check", None),
+    ParamRow("收集完自动退出游戏", "-psosysautoquitgame", "auto_quit", "check", None),
 ]
 
 
@@ -938,9 +945,6 @@ def _create_param_table(param_defs: list, parent: QWidget, font_scale: float = 1
             if pd.choices:
                 for display, value in pd.choices:
                     cmb.addItem(display, value)
-            # Shader 格式选择变更时回调 parent 的 _on_shader_format_changed
-            if pd.value_key == "shader_formats" and hasattr(parent, "_on_shader_format_changed"):
-                cmb.currentIndexChanged.connect(parent._on_shader_format_changed)
             row.addWidget(cmb, stretch=1)
             rows[pd.value_key] = (row_widget, cmb, None)
             continue
@@ -965,6 +969,22 @@ def _create_param_table(param_defs: list, parent: QWidget, font_scale: float = 1
         le.setMinimumHeight(le_mh)
         row.addWidget(le, stretch=1)
         value_widget = le
+
+        # 文件夹打开按钮（只读路径类型）
+        if pd.widget_type == "readonly":
+            btn_fs = _px(10)
+            btn_w = _px(24)
+            btn_h = _px(22)
+            browse_btn = QPushButton("\U0001F4C2")
+            browse_btn.setFixedSize(btn_w, btn_h)
+            browse_btn.setToolTip("打开所在文件夹")
+            browse_btn.setStyleSheet(
+                "QPushButton { background-color: #333333; color: #AAAAAA; border: 1px solid #3D3D3D;"
+                f" border-radius: 2px; font-size: {btn_fs}px; padding: 0; }}"
+                "QPushButton:hover { background-color: #444444; color: #CCCCCC; }"
+            )
+            browse_btn.clicked.connect(lambda checked, e=le: _open_path_in_explorer(e.text()))
+            row.addWidget(browse_btn)
 
         # 浏览按钮（仅路径类型）
         if pd.widget_type in ("path_file", "path_dir"):
@@ -1033,3 +1053,25 @@ def _clear_param_rows(rows: dict):
             value_widget.setText("")
             value_widget.setPlaceholderText("（请先完整配置项目和 UE 路径）")
             value_widget.blockSignals(False)
+
+
+def _open_path_in_explorer(path_str: str):
+    """在资源管理器中打开路径所在文件夹（优先用候选目录匹配，确保不启动可执行文件）"""
+    if not path_str:
+        return
+    p = Path(path_str)
+
+    # 直接是目录：打开
+    if p.is_dir():
+        subprocess.Popen(['explorer', str(p)])
+        return
+
+    # 是文件或形似文件：始终打开其父目录（避免 startfile 触发 exe 启动）
+    parent = p.parent
+    if parent.is_dir():
+        subprocess.Popen(['explorer', str(parent)])
+        return
+
+    # 降级：父目录也不存在但仍可能是有效路径（有后缀）
+    if p.suffix and parent.exists():
+        subprocess.Popen(['explorer', str(parent)])

@@ -79,6 +79,7 @@ class StepRunner(QObject):
         self._current_process: Optional[subprocess.Popen] = None
         self._game_process: Optional[subprocess.Popen] = None   # Step 3 启动的游戏进程
         self._game_exe_path: Optional[str] = None               # 游戏 exe 路径
+        self._ui_params: dict = {}                               # UI 传入的全部打包参数（key=value_key）
         self._step_details: list[tuple[str, str]] = []           # 当前步骤详情项: [(文本, 级别)]  级别: ok/error/warning/info
         self._editor_close_response: Optional[bool] = None      # 编辑器关闭对话框响应
         self._editor_close_event: Optional[threading.Event] = None
@@ -91,10 +92,16 @@ class StepRunner(QObject):
         """设置当前激活的项目"""
         self._project_index = index
         self._project = self._config.get_project(index)
+        self._ui_params = {}  # 重置，下次由 UI 传入
         if self._project:
             self._ue5 = self._config.get_project_ue5(self._project)
         else:
             self._ue5 = None
+
+    def set_ui_params(self, params: dict):
+        """设置 UI 打包参数（全部参数一次性传入，key=value_key）
+        后续新增参数无需修改此处，UI 收集后自动传入"""
+        self._ui_params = params or {}
 
     def stop(self):
         """请求停止执行"""
@@ -124,6 +131,55 @@ class StepRunner(QObject):
         不直接杀进程（避免阻塞 UI），改为设置跳过标志，
         让 Step3 循环在 worker 线程中自行终止进程并退出。"""
         self.skip_step3_wait()
+
+    def launch_pso_collection_game(self):
+        """由 UI 触发：以 PSO 自动收集参数启动打包程序
+        根据 UI 参数决定是否携带 -psosysautocoverage / -psosysautoquitgame 标志"""
+        self.step_status_signal.emit(3, StepStatus.RUNNING.value)
+
+        if not self._project:
+            self.step_status_signal.emit(3, StepStatus.FAILED.value)
+            return
+        exe_path = self._find_packaged_exe()
+        if not exe_path:
+            self._log("WARNING", "未找到打包程序，请先执行首次打包")
+            self.step_status_signal.emit(3, StepStatus.FAILED.value)
+            return
+
+        exe_dir = Path(exe_path).parent
+        flags = []
+        # 未设置时默认启用（兼容 WorkflowTab 完整工作流不传 UI params 的场景）
+        if self._ui_params.get("auto_coverage", True):
+            flags.append("-psosysautocoverage")
+        if self._ui_params.get("auto_quit", True):
+            flags.append("-psosysautoquitgame")
+
+        flag_str = " ".join(flags)
+        full_cmd = f'"{exe_path}" {flag_str}'.strip()
+        self.command_signal.emit(3, full_cmd)
+
+        self._log("INFO", f"启动 PSO 收集游戏: {Path(exe_path).name}")
+        if flags:
+            self._log("INFO", f"  附加参数: {flag_str}")
+        else:
+            self._log("WARNING", "  未勾选任何自动参数，游戏将以普通模式启动")
+
+        # 先关闭旧进程
+        self._terminate_game_process()
+        try:
+            self._game_process = subprocess.Popen(
+                full_cmd,
+                cwd=str(exe_dir),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            self._game_exe_path = exe_path
+            self._log("SUCCESS", f"已启动 PSO 收集游戏 (PID: {self._game_process.pid})")
+            self.step3_game_running_signal.emit(True)
+            self.step_status_signal.emit(3, StepStatus.SUCCESS.value)
+        except Exception as e:
+            self._log("ERROR", f"无法启动 PSO 收集游戏: {e}")
+            self.step_status_signal.emit(3, StepStatus.FAILED.value)
 
     def launch_step9_game(self):
         """由 UI 触发：Step 9 用 -logpso 参数打开打包程序"""
@@ -155,6 +211,18 @@ class StepRunner(QObject):
         """由 UI 触发：请求关闭 Step 9 游戏进程（避免阻塞 UI）"""
         self._step9_request_close = True
 
+    def _get_expected_exe_path(self) -> str:
+        """根据项目配置构造预期的打包 exe 路径（不检查文件是否存在）"""
+        if not self._project:
+            return ""
+        proj_name = self._project.name
+        output_dir = Path(self._project.output_dir)
+        # 尝试两级结构：Windows/<Name>.exe 优先（直接访问），否则 Windows/<Name>/<Name>.exe
+        direct = output_dir / "Windows" / f"{proj_name}.exe"
+        if direct.is_file():
+            return str(direct)
+        return str(output_dir / "Windows" / proj_name / f"{proj_name}.exe")
+
     def _find_packaged_exe(self) -> Optional[str]:
         """在打包输出目录中搜索 .exe 文件，返回完整路径或 None"""
         if not self._project:
@@ -169,8 +237,10 @@ class StepRunner(QObject):
 
         # 按优先顺序尝试多个模式（UAT -archive 产出的常见路径结构）
         candidates = [
+            output_dir / "Windows" / f"{proj_name}.exe",
             output_dir / "Windows" / proj_name / f"{proj_name}.exe",
             output_dir / "Windows" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
+            output_dir / "WindowsClient" / f"{proj_name}.exe",
             output_dir / "WindowsClient" / proj_name / f"{proj_name}.exe",
             output_dir / "WindowsClient" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
             output_dir / f"{proj_name}.exe",
@@ -193,20 +263,32 @@ class StepRunner(QObject):
 
         return None
 
-    def _open_exe(self, exe_path: str):
-        """启动打包程序（非阻塞），并保存进程句柄以便后续关闭"""
+    def _open_exe(self, exe_path: str, extra_flags: Optional[list] = None):
+        """启动打包程序（非阻塞），并保存进程句柄以便后续关闭
+        
+        Args:
+            exe_path: exe 完整路径
+            extra_flags: 额外命令行参数列表，如 ['-psosysautocoverage', '-psosysautoquitgame']
+        """
         # 先关闭之前可能残留的旧进程
         self._terminate_game_process()
 
+        flags = extra_flags or []
+        flag_str = " ".join(flags)
+        full_cmd = f'"{exe_path}" {flag_str}'.strip()
+
         try:
             exe_dir = Path(exe_path).parent
+            self.command_signal.emit(3, full_cmd)
             self._game_process = subprocess.Popen(
-                str(exe_path),
+                full_cmd,
                 cwd=str(exe_dir),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
             self._game_exe_path = exe_path
+            if flags:
+                self._log("INFO", f"  附加参数: {flag_str}")
             self._log("SUCCESS", f"已启动打包程序: {Path(exe_path).name}  (PID: {self._game_process.pid})")
             self.step3_game_running_signal.emit(True)
         except Exception as e:
@@ -1113,7 +1195,7 @@ class StepRunner(QObject):
         if self._project:
             self._add_step_detail(f"项目: {self._project.name}")
             self._add_step_detail(f"平台: {self._project.target_platform}")
-            self._add_step_detail(f"Shader 格式: {read_shader_formats_from_ini(self._project.project_dir)}")
+            self._add_step_detail(f"Shader 格式: {self._ui_params.get('shader_formats') or read_shader_formats_from_ini(self._project.project_dir)}")
             self._add_step_detail(f"输出: {self._project.output_dir}")
 
             # 首次打包前清理旧的打包输出和 Cook 缓存，确保干净构建
@@ -1198,7 +1280,13 @@ class StepRunner(QObject):
         exe_path = self._find_packaged_exe()
         if exe_path:
             self.step3_exe_found_signal.emit(exe_path)
-            self._open_exe(exe_path)
+            pso_flags = []
+            # 未设置时默认启用（兼容 WorkflowTab 完整工作流不传 UI params 的场景）
+            if self._ui_params.get("auto_coverage", True):
+                pso_flags.append("-psosysautocoverage")
+            if self._ui_params.get("auto_quit", True):
+                pso_flags.append("-psosysautoquitgame")
+            self._open_exe(exe_path, extra_flags=pso_flags if pso_flags else None)
         else:
             self.step3_exe_found_signal.emit("")
             self._log("WARNING", "未自动找到打包程序，请手动在资源管理器中打开")
@@ -1671,7 +1759,8 @@ class StepRunner(QObject):
         # 日志文件路径
         log_dir = Path(proj.output_dir) / "Windows" / proj.name / "Saved" / "Logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_file = log_dir / f"{proj.name}_PSOTest.log"
+        log_filename = f"{proj.name}_PSOTest.log"
+        log_file = log_dir / log_filename
 
         self._add_step_detail(f"日志: {log_file}")
 
@@ -1679,19 +1768,19 @@ class StepRunner(QObject):
 
         self._log("INFO", "")
         self._log("INFO", "启动打包程序（带 -logpso 参数），请在游戏中遍历所有场景...")
-        self._log("INFO", "测试完成后正常退出游戏即可，工具会自动分析日志")
+        self._log("INFO", "测试完成后点击「关闭游戏」按钮，工具会等待 3s 刷写日志后自动关闭游戏并分析")
         self._log("INFO", "")
 
-        # 使用 -logpso 启动游戏
+        # 使用 -logpso 启动游戏（-log= 只接受文件名，不含路径）
         try:
             exe_dir = Path(exe_path).parent
             exe_name = Path(exe_path).name
 
-            cmd = f'"{exe_path}" -logpso -log="{log_file}"'
+            cmd = f'"{exe_path}" -logpso -log={log_filename}'
             self._log("INFO", f">> {cmd}")
 
             self._game_process = subprocess.Popen(
-                f'"{exe_path}" -logpso -log="{log_file}"',
+                f'"{exe_path}" -logpso -log={log_filename}',
                 cwd=str(exe_dir),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -1709,6 +1798,9 @@ class StepRunner(QObject):
 
             while self._game_process and self._game_process.poll() is None:
                 if self._stop_requested or self._step9_request_close:
+                    if self._step9_request_close and not self._stop_requested:
+                        self._log("INFO", "收到关闭请求，等待 3s 让游戏刷写 PSO 日志...")
+                        time.sleep(3)
                     reason = "用户中止" if self._stop_requested else "用户请求关闭"
                     self._log("WARNING", f"{reason}，正在关闭游戏...")
                     self._terminate_game_process()
@@ -1923,15 +2015,16 @@ class StepRunner(QObject):
 
         uproject = self._project.uproject_file
         output_dir = self._project.output_dir
-        platform = self._project.target_platform
-        shader_formats = read_shader_formats_from_ini(self._project.project_dir)
+        platform = self._ui_params.get("platform") or self._project.target_platform
+        build_config = self._ui_params.get("config") or "Development"
+        shader_formats = self._ui_params.get("shader_formats") or read_shader_formats_from_ini(self._project.project_dir)
 
         cmd = (
             f'"{self._ue5.uat_bat_path}"'
             f' BuildCookRun'
             f' -project="{uproject}"'
             f' -platform={platform}'
-            f' -clientconfig=Development'
+            f' -clientconfig={build_config}'
             f' -build'
             f' -cook'
             f' -stage'

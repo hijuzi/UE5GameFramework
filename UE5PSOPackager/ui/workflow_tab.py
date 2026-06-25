@@ -16,6 +16,16 @@ from PySide6.QtGui import QFont
 from step_definitions import PSO_WORKFLOW_STEPS, StepStatus
 from step_runner import StepRunner
 
+
+class _WorkerThread(QThread):
+    """简单的 Worker 线程：只执行 target，runner 始终留在主线程，避免 moveToThread 线程亲和性问题。"""
+    def __init__(self, target, parent=None):
+        super().__init__(parent)
+        self._target = target
+
+    def run(self):
+        self._target()
+
 STATUS_ICONS = {
     StepStatus.PENDING.value: "○",
     StepStatus.RUNNING.value: "▶",
@@ -579,10 +589,10 @@ class WorkflowTab(QWidget):
         self._start_run(lambda: self._runner.run_step(9))
 
     def _start_run(self, target):
+        if self._running:
+            return
         self._set_running(True)
-        self._thread = QThread()
-        self._runner.moveToThread(self._thread)
-        self._thread.started.connect(target)
+        self._thread = _WorkerThread(target)
         self._thread.finished.connect(self._on_thread_finished)
         self._thread.start()
 
@@ -606,9 +616,8 @@ class WorkflowTab(QWidget):
         self._btn_run_selected.setEnabled(not running)
         self._btn_run_step9.setEnabled(not running)
         self._btn_stop.setEnabled(running)
-        if not running and self._thread:
-            self._thread.quit()
-            self._thread.wait()
+        if not running and self._thread is not None:
+            self._thread.wait(5000)
             self._thread = None
 
     # ---- 状态更新 ----

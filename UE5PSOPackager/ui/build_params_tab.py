@@ -20,15 +20,25 @@ from PySide6.QtGui import QWheelEvent
 
 from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig, read_shader_formats_list_from_ini
 from step_runner import StepRunner
+
+
+class _WorkerThread(QThread):
+    """简单的 Worker 线程：只执行 target，runner 始终留在主线程，避免 moveToThread 线程亲和性问题。"""
+    def __init__(self, target, parent=None):
+        super().__init__(parent)
+        self._target = target
+
+    def run(self):
+        self._target()
 from ui.config_tab import (
-    NoScrollComboBox, ParamRow,
-    _FIRST_FINAL_PARAMS, _CACHE_CONVERT_PARAMS,
+    _FIRST_FINAL_PARAMS, _CACHE_CONVERT_PARAMS, _PSO_COLLECT_PARAMS,
     _create_param_table, _fill_param_rows, _clear_param_rows,
     _browse_dir, _browse_file,
 )
 
 # 步骤索引映射
 _STEP_FIRST_BUILD = 2    # Step 2: 首次打包
+_STEP_COLLECT_PSO = 3    # Step 3: 收集 PSO
 _STEP_CACHE_CONVERT = 6  # Step 6: 转换缓存
 _STEP_FINAL_BUILD = 8    # Step 8: 最终打包
 
@@ -45,9 +55,9 @@ class BuildParamsTab(QWidget):
 
         # 参数表格行
         self._first_build_rows: dict[str, tuple] = {}
+        self._pso_collect_rows: dict[str, tuple] = {}
         self._cache_convert_rows: dict[str, tuple] = {}
         self._final_build_rows: dict[str, tuple] = {}
-        self._syncing_shader_format: bool = False
 
         # 执行状态
         self._running = False
@@ -56,12 +66,14 @@ class BuildParamsTab(QWidget):
 
         self._setup_ui()
 
-    _STEP_NAMES = {2: "首次打包", 6: "转换缓存", 8: "最终打包"}
+    _STEP_NAMES = {2: "首次打包", 3: "PSO 收集", 6: "转换缓存", 8: "最终打包"}
 
     # ---- 按钮配色与图标 ----
     _BTN_STYLE = {
         "first":  {"icon": "\U0001F3D7\uFE0F ", "color": "#0078D4", "hover": "#1A8CE8", "press": "#005A9E",
                    "text": "执行首次打包", "running_text": "\u23F3 执行中..."},
+        "pso":    {"icon": "\U0001F3AE ",       "color": "#E67E22", "hover": "#F39C12", "press": "#D35400",
+                   "text": "启动收集PSO游戏", "running_text": "\u23F3 启动中..."},
         "cache":  {"icon": "\U0001F504 ",       "color": "#00A88F", "hover": "#00C7AE", "press": "#008A73",
                    "text": "执行缓存转换", "running_text": "\u23F3 执行中..."},
         "final":  {"icon": "\U0001F4E6 ",       "color": "#8B5CF6", "hover": "#A78BFA", "press": "#6D3FD6",
@@ -123,7 +135,17 @@ class BuildParamsTab(QWidget):
             fbl.addWidget(widget[0])
         cl.addWidget(fbg)
 
-        # Part 2: 转换缓存
+        # Part 2: PSO 收集参数
+        psog = QGroupBox("  PSO 收集")
+        psog.setStyleSheet(gb_style)
+        psol = QVBoxLayout(psog)
+        psol.setSpacing(2)
+        self._pso_collect_rows = _create_param_table(_PSO_COLLECT_PARAMS, self, font_scale=1.2)
+        for widget in self._pso_collect_rows.values():
+            psol.addWidget(widget[0])
+        cl.addWidget(psog)
+
+        # Part 3: 转换缓存
         cg = QGroupBox("  转换缓存")
         cg.setStyleSheet(gb_style)
         cgl = QVBoxLayout(cg)
@@ -133,7 +155,7 @@ class BuildParamsTab(QWidget):
             cgl.addWidget(widget[0])
         cl.addWidget(cg)
 
-        # Part 3: 最终打包
+        # Part 4: 最终打包
         fg = QGroupBox("  最终打包")
         fg.setStyleSheet(gb_style)
         fgl = QVBoxLayout(fg)
@@ -163,23 +185,32 @@ class BuildParamsTab(QWidget):
         btn_card_layout.setContentsMargins(10, 18, 10, 12)
         btn_card_layout.setSpacing(8)
 
-        # 三个按钮横向排布，等宽，独立配色
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
+        # 四个按钮 2x2 布局，独立配色
+        btn_row1 = QHBoxLayout()
+        btn_row1.setSpacing(8)
 
         self._btn_first_build = self._make_action_btn("first")
         self._btn_first_build.clicked.connect(self._on_run_first_build)
-        btn_row.addWidget(self._btn_first_build)
+        btn_row1.addWidget(self._btn_first_build)
+
+        self._btn_pso_collect = self._make_action_btn("pso")
+        self._btn_pso_collect.clicked.connect(self._on_launch_pso_collection)
+        btn_row1.addWidget(self._btn_pso_collect)
+
+        btn_card_layout.addLayout(btn_row1)
+
+        btn_row2 = QHBoxLayout()
+        btn_row2.setSpacing(8)
 
         self._btn_cache_convert = self._make_action_btn("cache")
         self._btn_cache_convert.clicked.connect(self._on_run_cache_convert)
-        btn_row.addWidget(self._btn_cache_convert)
+        btn_row2.addWidget(self._btn_cache_convert)
 
         self._btn_final_build = self._make_action_btn("final")
         self._btn_final_build.clicked.connect(self._on_run_final_build)
-        btn_row.addWidget(self._btn_final_build)
+        btn_row2.addWidget(self._btn_final_build)
 
-        btn_card_layout.addLayout(btn_row)
+        btn_card_layout.addLayout(btn_row2)
         right_layout.addWidget(btn_card)
 
         # ---- 执行详情卡片 ----
@@ -311,10 +342,11 @@ class BuildParamsTab(QWidget):
         return btn
 
     def refresh(self, project_index: int, ue5_version: str):
-        """根据当前选中的项目和 UE 版本刷新三组参数"""
+        """根据当前选中的项目和 UE 版本刷新四组参数"""
         self._current_project_index = project_index
         self._current_ue5_version = ue5_version
         self._populate_first_build_params()
+        self._populate_pso_collect_params()
         self._populate_cache_convert_params()
         self._populate_final_build_params()
 
@@ -322,6 +354,27 @@ class BuildParamsTab(QWidget):
 
     def _populate_first_build_params(self):
         self._populate_uat_params(self._first_build_rows)
+
+    def _populate_pso_collect_params(self):
+        """填充 PSO 收集参数表格（exe 路径 + 复选框）"""
+        proj = self._config.get_project(self._current_project_index)
+        ver = self._current_ue5_version
+        ue = self._config.ue5_versions.get(ver) if ver else None
+        rows = self._pso_collect_rows
+
+        if not proj or not ue:
+            _clear_param_rows(rows)
+            return
+
+        self._runner.set_project(self._current_project_index)
+        exe_path = self._runner._get_expected_exe_path()
+
+        defaults = {
+            "game_exe": exe_path,
+            "auto_coverage": True,
+            "auto_quit": True,
+        }
+        _fill_param_rows(rows, defaults)
 
     def _populate_final_build_params(self):
         self._populate_uat_params(self._final_build_rows)
@@ -366,39 +419,6 @@ class BuildParamsTab(QWidget):
         }
         _fill_param_rows(rows, defaults)
 
-    # ---- Shader 格式同步 ----
-
-    def _on_shader_format_changed(self, index: int):
-        """Shader 格式下拉选择变更时同步到另一处表格"""
-        if index < 0 or self._syncing_shader_format:
-            return
-
-        self._syncing_shader_format = True
-        try:
-            fmt = None
-            for rows_key in ("_first_build_rows", "_final_build_rows"):
-                rows = getattr(self, rows_key, {})
-                if "shader_formats" in rows:
-                    _, cmb, _ = rows["shader_formats"]
-                    if isinstance(cmb, QComboBox) and cmb.currentIndex() == index:
-                        fmt = cmb.itemData(index)
-                        break
-            if not fmt:
-                return
-
-            for rows_key in ("_first_build_rows", "_final_build_rows"):
-                rows = getattr(self, rows_key, {})
-                if "shader_formats" in rows:
-                    _, cmb, _ = rows["shader_formats"]
-                    if isinstance(cmb, QComboBox):
-                        cmb.blockSignals(True)
-                        idx = cmb.findData(fmt)
-                        if idx >= 0:
-                            cmb.setCurrentIndex(idx)
-                        cmb.blockSignals(False)
-        finally:
-            self._syncing_shader_format = False
-
     # ---- 转换缓存参数填充 ----
 
     def _populate_cache_convert_params(self):
@@ -425,8 +445,66 @@ class BuildParamsTab(QWidget):
 
     # ---- 独立执行按钮 ----
 
+    # step_index → rows 属性名 映射
+    _ROWS_BY_STEP = {
+        _STEP_FIRST_BUILD: "_first_build_rows",
+        _STEP_COLLECT_PSO: "_pso_collect_rows",
+        _STEP_CACHE_CONVERT: "_cache_convert_rows",
+        _STEP_FINAL_BUILD: "_final_build_rows",
+    }
+
+    def _collect_ui_params(self, rows: dict) -> dict:
+        """从 UI 参数行收集全部值（key=value_key）
+        新增参数无需修改此处，自动纳入收集"""
+        params = {}
+        for key, (row_widget, value_widget, browse_btn) in rows.items():
+            if isinstance(value_widget, QCheckBox):
+                params[key] = value_widget.isChecked()
+            elif isinstance(value_widget, QComboBox):
+                if value_widget.currentIndex() >= 0:
+                    params[key] = value_widget.currentData()
+            elif isinstance(value_widget, QLineEdit):
+                params[key] = value_widget.text()
+        return params
+
     def _on_run_first_build(self):
         self._start_run(_STEP_FIRST_BUILD)
+
+    def _on_run_pso_collection(self):
+        self._start_run(_STEP_COLLECT_PSO)
+
+    def _on_launch_pso_collection(self):
+        """启动 PSO 收集游戏并更新执行详情 / 日志 / 工作流"""
+        proj = self._config.get_project(self._current_project_index)
+        if not proj:
+            return
+        self._runner.set_project(self._current_project_index)
+        # 收集 UI 参数传给 runner
+        self._runner.set_ui_params(self._collect_ui_params(self._pso_collect_rows))
+
+        # 清空日志窗口并显示步骤头
+        self._log_output.clear()
+        self._result_card.setVisible(False)
+        step_name = self._STEP_NAMES.get(_STEP_COLLECT_PSO, "PSO 收集")
+        ts = datetime.now().strftime("%H:%M:%S")
+        self._log_output.appendPlainText(f"══ {step_name} ══")
+        self._log_output.appendPlainText(f"[{ts}] 正在启动…\n")
+
+        # 临时连接 runner 日志信号以捕获启动日志
+        self._runner.log_signal.connect(self._on_launch_log)
+
+        self._runner.launch_pso_collection_game()
+
+        # 断开临时信号
+        try:
+            self._runner.log_signal.disconnect(self._on_launch_log)
+        except (TypeError, RuntimeError):
+            pass
+
+    def _on_launch_log(self, level: str, message: str):
+        """捕获 launch_pso_collection_game 的日志输出到执行详情"""
+        color = {"SUCCESS": "#4ECB71", "ERROR": "#E0556A", "WARNING": "#D4A843", "INFO": "#AAAAAA"}.get(level, "#CCCCCC")
+        self._log_output.appendHtml(f'<span style="color:{color}">{message}</span>')
 
     def _on_run_cache_convert(self):
         self._start_run(_STEP_CACHE_CONVERT)
@@ -439,6 +517,13 @@ class BuildParamsTab(QWidget):
         if self._running:
             return
         self._runner.set_project(self._current_project_index)
+
+        # 从 UI 收集全部打包参数并传给 runner（新增参数无需修改此处）
+        rows_attr = self._ROWS_BY_STEP.get(step_index)
+        if rows_attr:
+            rows = getattr(self, rows_attr, {})
+            self._runner.set_ui_params(self._collect_ui_params(rows))
+
         self._runner._pending_step = step_index
 
         # 清空日志窗口并隐藏上次结果
@@ -456,9 +541,8 @@ class BuildParamsTab(QWidget):
         self._runner.step_status_signal.connect(self._on_detail_status)
         self._runner.step_result_signal.connect(self._on_step_completed)
 
-        self._thread = QThread()
-        self._runner.moveToThread(self._thread)
-        self._thread.started.connect(self._runner._execute_pending_step)
+        # 使用 QThread.run() 子类：runner 留在主线程，worker 线程只调用其方法
+        self._thread = _WorkerThread(self._runner._execute_pending_step)
         self._thread.finished.connect(self._on_thread_finished)
         self._thread.start()
 
@@ -522,7 +606,7 @@ class BuildParamsTab(QWidget):
             self._btn_open_rec_dir.setVisible(True)
             self._btn_open_shk_dir.setVisible(True)
             self._btn_open_spc_dir.setVisible(True)
-        elif step_index in (_STEP_FIRST_BUILD, _STEP_FINAL_BUILD):
+        elif step_index in (_STEP_FIRST_BUILD, _STEP_COLLECT_PSO, _STEP_FINAL_BUILD):
             self._last_step_type = "build"
             self._btn_launch_game.setVisible(True)
             self._btn_close_game.setVisible(True)
@@ -550,6 +634,7 @@ class BuildParamsTab(QWidget):
         self._running = running
         mapping = [
             (self._btn_first_build, "first"),
+            (self._btn_pso_collect, "pso"),
             (self._btn_cache_convert, "cache"),
             (self._btn_final_build, "final"),
         ]
@@ -560,10 +645,8 @@ class BuildParamsTab(QWidget):
                 btn.setText(s["running_text"])
             else:
                 btn.setText(f"{s['icon']}{s['text']}")
-        if not running and self._thread:
-            self._runner.moveToThread(QThread.currentThread())
-            self._thread.quit()
-            self._thread.wait()
+        if not running and self._thread is not None:
+            self._thread.wait(5000)
             self._thread = None
 
     # ---- 结果操作按钮辅助方法 ----
@@ -630,33 +713,37 @@ class BuildParamsTab(QWidget):
         output_dir = Path(proj.output_dir)
         # 候选目录：优先 exe 所在目录（Binaries/Win64），逐级降级
         candidates = [
+            output_dir / "Windows",
             output_dir / "Windows" / proj.name / "Binaries" / "Win64",
             output_dir / "Windows" / proj.name,
+            output_dir / "WindowsClient",
             output_dir / "WindowsClient" / proj.name / "Binaries" / "Win64",
             output_dir / "WindowsClient" / proj.name,
         ]
         for d in candidates:
             if d.is_dir():
                 self._log_output.appendPlainText(f"[打开目录] {d}")
-                os.startfile(str(d))
+                subprocess.Popen(['explorer', str(d)])
                 return
 
         # 降级：即使不是目录，尝试通过 exe 定位其父目录
         exe_candidates = [
+            output_dir / "Windows" / f"{proj.name}.exe",
             output_dir / "Windows" / proj.name / f"{proj.name}.exe",
+            output_dir / "WindowsClient" / f"{proj.name}.exe",
             output_dir / "WindowsClient" / proj.name / f"{proj.name}.exe",
         ]
         for exe_path in exe_candidates:
             if exe_path.is_file():
                 parent = exe_path.parent
                 self._log_output.appendPlainText(f"[打开目录] {parent}")
-                os.startfile(str(parent))
+                subprocess.Popen(['explorer', str(parent)])
                 return
 
         # 最终降级：输出目录本身
         if output_dir.is_dir():
             self._log_output.appendPlainText(f"[打开目录] {output_dir}")
-            os.startfile(str(output_dir))
+            subprocess.Popen(['explorer', str(output_dir)])
         else:
             self._log_output.appendPlainText("[警告] 输出目录不存在，无法打开")
 

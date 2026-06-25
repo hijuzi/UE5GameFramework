@@ -52,8 +52,8 @@ PSO_WORKFLOW_STEPS: list[StepConfig] = [
     StepConfig(
         index=3,
         name="收集 PSO 记录",
-        description="手动运行打包程序遍历所有场景，工具自动监听 .rec.upipelinecache 文件变化并自动继续",
-        estimated_time="5-30 分钟（自动监听）",
+        description="运行打包程序自动遍历场景收集 PSO 缓存；可选参数 -psosysautocoverage 自动开始覆盖采集、-psosysautoquitgame 采集完成后自动退出游戏",
+        estimated_time="5-30 分钟（自动采集）",
         depends_on=[2],
     ),
     StepConfig(

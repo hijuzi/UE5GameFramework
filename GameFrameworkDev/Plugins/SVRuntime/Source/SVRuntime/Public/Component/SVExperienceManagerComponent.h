@@ -60,8 +60,8 @@ protected:
 	/** 注册 BeginPlay 等待屏幕隐藏的委托绑定 */
 	void RegisterBeginPlayWaitScreenEvents();
 
-	/** Flow Step: 尝试显示着色器编译界面 */
-	void FlowStep_TryShowCompilingShadersScreen(FControlFlowNodeRef SubFlow) { TryPushWidgetToLayer(SubFlow, CompilingShadersScreenClass, true); }
+	/** Flow Step: 尝试显示着色器编译界面（如果 PSO 已全部编译完成则跳过） */
+	void FlowStep_TryShowCompilingShadersScreen(FControlFlowNodeRef SubFlow);
 	/** Flow Step: 尝试显示 Press Start 界面 */
 	void FlowStep_TryShowPressStartScreen(FControlFlowNodeRef SubFlow) { TryPushWidgetToLayer(SubFlow, PressStartScreenClass, true); }
 	/** Flow Step: 尝试显示主界面 */
