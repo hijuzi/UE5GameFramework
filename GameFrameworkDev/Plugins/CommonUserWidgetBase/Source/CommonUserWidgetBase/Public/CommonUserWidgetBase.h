@@ -1,10 +1,10 @@
-// Copyright Yuzhda Bohdan (Bitkovin) 2023
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
 #include "Modules/ModuleManager.h"
 
-class FShaderCompilationScreenModule : public IModuleInterface
+class FCommonUserWidgetBaseModule : public IModuleInterface
 {
 public:
 

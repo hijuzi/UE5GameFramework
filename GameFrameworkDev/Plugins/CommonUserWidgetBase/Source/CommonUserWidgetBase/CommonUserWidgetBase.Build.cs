@@ -1,10 +1,10 @@
-// Copyright Yuzhda Bohdan (Bitkovin) 2023
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
 
-public class ShaderCompilationScreen : ModuleRules
+public class CommonUserWidgetBase : ModuleRules
 {
-	public ShaderCompilationScreen(ReadOnlyTargetRules Target) : base(Target)
+	public CommonUserWidgetBase(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
@@ -26,7 +26,8 @@ public class ShaderCompilationScreen : ModuleRules
 			new string[]
 			{
 				"Core",
-				"Niagara"
+				"CommonUI",
+				// ... add other public dependencies that you statically link with here ...
 			}
 			);
 			
@@ -38,6 +39,10 @@ public class ShaderCompilationScreen : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"EnhancedInput",
+				"UMG",
+				"CommonInput",
+				"DeveloperSettings",
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

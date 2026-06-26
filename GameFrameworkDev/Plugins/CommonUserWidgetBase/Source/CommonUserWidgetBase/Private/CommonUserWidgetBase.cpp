@@ -1,22 +1,20 @@
-// Copyright Yuzhda Bohdan (Bitkovin) 2023
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ShaderCompilationScreen.h"
+#include "CommonUserWidgetBase.h"
 
-#define LOCTEXT_NAMESPACE "FShaderCompilationScreenModule"
+#define LOCTEXT_NAMESPACE "FCommonUserWidgetBaseModule"
 
-void FShaderCompilationScreenModule::StartupModule()
+void FCommonUserWidgetBaseModule::StartupModule()
 {
 	// This code will execute after your module is loaded into memory; the exact timing is specified in the .uplugin file per-module
-	
 }
 
-void FShaderCompilationScreenModule::ShutdownModule()
+void FCommonUserWidgetBaseModule::ShutdownModule()
 {
 	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
 	// we call this function before unloading the module.
-	
 }
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FShaderCompilationScreenModule, ShaderCompilationScreen)
+IMPLEMENT_MODULE(FCommonUserWidgetBaseModule, CommonUserWidgetBase)
