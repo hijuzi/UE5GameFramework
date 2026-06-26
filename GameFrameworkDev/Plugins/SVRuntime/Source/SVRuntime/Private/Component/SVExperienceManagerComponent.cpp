@@ -172,13 +172,15 @@ void USVExperienceManagerComponent::OnExperienceLoaded()
 	if (const USVBaseExperienceDefinition* ExperienceDef = USVBaseExperienceDefinition::GetCurrentExperienceDefinition(GetWorld()))
 	{
 		MainScreenClass = ExperienceDef->MainScreenClass;
+	}
 
-		// Login 类型的 Experience 额外提供 PressStartScreenClass 和 CompilingShadersScreenClass
-		if (const USVLoginExperienceDefinition* LoginExperienceDef = Cast<USVLoginExperienceDefinition>(ExperienceDef))
-		{
-			CompilingShadersScreenClass = LoginExperienceDef->CompilingShadersScreenClass;
-			PressStartScreenClass = LoginExperienceDef->PressStartScreenClass;
-		}
+	// Login 类型的 Experience 额外提供 PressStartScreenClass 和 CompilingShadersScreenClass
+	if (const USVLoginExperienceDefinition* LoginExperienceDef = USVLoginExperienceDefinition::GetCurrentLoginExperienceDefinition(GetWorld()))
+	{
+		CompilingShadersScreenClass = LoginExperienceDef->CompilingShadersScreenClass;
+		bForceShowCompilingShadersScreen = LoginExperienceDef->bForceShowCompilingShadersScreen;
+		bEnableCompilingShadersInEditor = LoginExperienceDef->bEnableCompilingShadersInEditor;
+		PressStartScreenClass = LoginExperienceDef->PressStartScreenClass;
 	}
 	bShouldShowLoadingScreen = true;
 	FControlFlow& Flow = FControlFlowStatics::Create(this, TEXT("ExperienceFlow"))
@@ -195,6 +197,16 @@ void USVExperienceManagerComponent::OnExperienceLoaded()
 
 void USVExperienceManagerComponent::FlowStep_TryShowCompilingShadersScreen(FControlFlowNodeRef SubFlow)
 {
+#if WITH_EDITOR
+	// 编辑器下：如果强制开启且编辑器也启用，直接显示着色器界面
+	if (bForceShowCompilingShadersScreen && bEnableCompilingShadersInEditor)
+	{
+		UE_LOG(LogSVExperience, Log, TEXT("编辑器模式：强制开启着色器编译界面"));
+		TryPushWidgetToLayer(SubFlow, CompilingShadersScreenClass, true);
+		return;
+	}
+#endif
+
 	// 检查 PSO 是否已全部预编译完成，如果已完成则跳过着色器编译界面
 	if (UWorld* World = GetWorld())
 	{
@@ -205,6 +217,13 @@ void USVExperienceManagerComponent::FlowStep_TryShowCompilingShadersScreen(FCont
 				const int32 Remaining = PSOCacheMgr->GetPrecompilesRemaining();
 				if (Remaining == 0)
 				{
+					// PSO 已完成，检查是否强制显示着色器界面
+					if (bForceShowCompilingShadersScreen)
+					{
+						UE_LOG(LogSVExperience, Log, TEXT("PSO 预编译已完成，但强制开启着色器编译界面"));
+						TryPushWidgetToLayer(SubFlow, CompilingShadersScreenClass, true);
+						return;
+					}
 					UE_LOG(LogSVExperience, Log, TEXT("PSO 预编译已完成，跳过着色器编译界面"));
 					SubFlow->ContinueFlow();
 					return;

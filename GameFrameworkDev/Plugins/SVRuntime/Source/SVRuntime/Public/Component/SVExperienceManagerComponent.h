@@ -95,6 +95,12 @@ protected:
 	/** 着色器编译界面类（从 SVLoginExperienceDefinition 读取） */
 	TSoftClassPtr<UCommonActivatableWidget> CompilingShadersScreenClass;
 
+	/** 是否强制开启着色器编译界面（从 SVLoginExperienceDefinition 读取） */
+	bool bForceShowCompilingShadersScreen = false;
+
+	/** 编辑器中是否也需要开启着色器界面（从 SVLoginExperienceDefinition 读取） */
+	bool bEnableCompilingShadersInEditor = false;
+
 	/** Press Start 界面类（从 SVLoginExperienceDefinition 读取） */
 	TSoftClassPtr<UCommonActivatableWidget> PressStartScreenClass;
 

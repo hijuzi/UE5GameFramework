@@ -71,6 +71,12 @@ _PSO_COLLECT_PARAMS = [
     ParamRow("收集完自动退出游戏", "-psosysautoquitgame", "auto_quit", "check", None),
 ]
 
+_STEP9_TEST_PARAMS = [
+    ParamRow("游戏路径", "", "game_exe", "readonly", None),
+    ParamRow("PSO日志", "-logpso", "logpso", "check", None),
+    ParamRow("自动关闭时间(分钟)", "", "auto_close_minutes", "text", None),
+]
+
 
 def _read_engine_association(uproject_path: Path) -> str | None:
     """从 .uproject 文件读取 EngineAssociation，失败返回 None"""
@@ -202,6 +208,7 @@ class ConfigTab(QWidget):
 
         self._proj_ue_version = NoScrollComboBox()
         self._proj_ue_version.setEditable(False)
+        self._proj_ue_version.currentTextChanged.connect(self._on_proj_ue_version_changed)
         proj_form_layout.addRow("关联 UE 版本:", self._proj_ue_version)
 
         self._proj_ue_status = QLabel("")
@@ -541,13 +548,43 @@ class ConfigTab(QWidget):
 
     # ---- UE 表单 ----
 
+    def _sync_ue_list_to_version(self, version: str):
+        """将左侧 UE 列表选中项同步到指定版本（不触发信号）"""
+        self._ue_list.blockSignals(True)
+        for i in range(self._ue_list.count()):
+            if self._ue_list.item(i).text() == version:
+                self._ue_list.setCurrentRow(i)
+                break
+        self._ue_list.blockSignals(False)
+
     def _on_ue_selected(self, version: str):
         if not version:
             return
         self._current_ue5_version = version
         self._render_ue_detail(version)
         self._populate_engine_config()
+        # 将当前项目的关联 UE 版本下拉框也同步
+        if self._current_project_index >= 0:
+            self._proj_ue_version.blockSignals(True)
+            idx = self._proj_ue_version.findText(version)
+            if idx >= 0:
+                self._proj_ue_version.setCurrentIndex(idx)
+            self._proj_ue_version.blockSignals(False)
         self.selection_changed.emit(self._current_project_index, version)
+
+    def _on_proj_ue_version_changed(self, version: str):
+        """项目详情中关联 UE 版本下拉变更：更新项目配置并同步左侧列表"""
+        if not version or self._current_project_index < 0:
+            return
+        proj = self._config.get_project(self._current_project_index)
+        if proj and proj.ue5_version != version:
+            proj.ue5_version = version
+        if self._current_ue5_version != version:
+            self._current_ue5_version = version
+            self._sync_ue_list_to_version(version)
+            self._render_ue_detail(version)
+            self._populate_engine_config()
+            self.selection_changed.emit(self._current_project_index, version)
 
     def _render_ue_detail(self, version: str):
         ue = self._config.ue5_versions.get(version)
@@ -658,9 +695,34 @@ class ConfigTab(QWidget):
             return
         self._current_project_index = index
         self._render_proj_detail(index)
+        # 同步 UE 版本：将当前项目关联的 UE 版本设为当前选中
+        proj = self._config.get_project(index)
+        if proj and proj.ue5_version:
+            self._current_ue5_version = proj.ue5_version
+            self._sync_ue_list_to_version(proj.ue5_version)
+            self._render_ue_detail(proj.ue5_version)
+            self._populate_engine_config()
         self._populate_game_config()
         self._populate_pso_config_check()
         self.selection_changed.emit(index, self._current_ue5_version)
+
+    def select_project_external(self, index: int):
+        """外部（顶部下拉）切换项目时同步内部列表高亮（不触发信号）"""
+        if index < 0 or index >= len(self._config.projects):
+            return
+        self._current_project_index = index
+        self._proj_list.blockSignals(True)
+        self._proj_list.setCurrentRow(index)
+        self._proj_list.blockSignals(False)
+        self._render_proj_detail(index)
+        proj = self._config.get_project(index)
+        if proj and proj.ue5_version:
+            self._current_ue5_version = proj.ue5_version
+            self._sync_ue_list_to_version(proj.ue5_version)
+            self._render_ue_detail(proj.ue5_version)
+            self._populate_engine_config()
+        self._populate_game_config()
+        self._populate_pso_config_check()
 
     def _render_proj_detail(self, index: int):
         proj = self._config.get_project(index)
@@ -685,9 +747,11 @@ class ConfigTab(QWidget):
         self._proj_rec_rel.setText(proj.rec_source_relative)
         self._proj_spc_rel.setText(proj.spc_target_relative)
 
+        self._proj_ue_version.blockSignals(True)
         idx = self._proj_ue_version.findText(proj.ue5_version)
         if idx >= 0:
             self._proj_ue_version.setCurrentIndex(idx)
+        self._proj_ue_version.blockSignals(False)
 
         self._proj_name.blockSignals(False)
         self._proj_dir.blockSignals(False)
@@ -908,7 +972,7 @@ def _create_param_table(param_defs: list, parent: QWidget, font_scale: float = 1
 
         # 功能描述列
         desc_lbl = QLabel(pd.desc)
-        desc_lbl.setFixedWidth(_px(72))
+        desc_lbl.setFixedWidth(_px(110))
         desc_lbl.setStyleSheet(f"color: #AAAAAA; font-size: {_px(12)}px;")
         desc_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         row.addWidget(desc_lbl)

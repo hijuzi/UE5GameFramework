@@ -2,6 +2,7 @@
 WorkflowTab - 工作流执行标签页
 步骤清单 + 执行按钮组 + 进度条 + Step 3 操作面板 + 右侧步骤详情
 """
+import subprocess
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -697,6 +698,8 @@ class WorkflowTab(QWidget):
         self._btn_step3_close_game.setEnabled(False)
         self._lbl_step3_status.setText("正在关闭游戏...")
         self._runner.close_packaged_game()
+        # 直接 taskkill 确保进程真正终止（Popen.terminate() 可能漏掉子进程）
+        self._force_kill_game_by_name()
 
     def _on_step3_skip(self):
         self._btn_step3_skip.setEnabled(False)
@@ -729,10 +732,33 @@ class WorkflowTab(QWidget):
         self._runner.launch_step9_game()
 
     def _on_step9_close_game(self):
-        """Step 9 关闭游戏（设置标志，worker 线程处理终止）"""
+        """Step 9 关闭游戏（设置标志 + 直接 taskkill 确保游戏真正终止）"""
         self._btn_step9_close_game.setEnabled(False)
         self._lbl_step9_status.setText("正在关闭游戏...")
         self._runner.close_step9_game()
+        self._force_kill_game_by_name()
+
+    def _force_kill_game_by_name(self):
+        """通过 taskkill /F 直接终止游戏进程（参照 build_params_tab 的可靠做法）"""
+        proj = getattr(self._runner, '_project', None)
+        game_exe_path = getattr(self._runner, '_game_exe_path', '')
+        exe_name = None
+        if game_exe_path:
+            exe_name = Path(game_exe_path).name
+        elif proj and proj.name:
+            exe_name = f"{proj.name}.exe"
+        if not exe_name:
+            return
+        try:
+            result = subprocess.run(
+                ["taskkill", "/F", "/IM", exe_name],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode == 0:
+                self._lbl_step3_status.setText(f"已关闭: {exe_name}")
+                self._lbl_step9_status.setText(f"已关闭: {exe_name}")
+        except Exception:
+            pass
 
     # ---- PSO 覆盖范围可视化 ----
 

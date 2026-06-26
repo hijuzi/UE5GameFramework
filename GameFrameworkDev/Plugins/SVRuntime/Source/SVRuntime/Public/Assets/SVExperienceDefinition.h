@@ -27,7 +27,8 @@ public:
 	USVBaseExperienceDefinition();
 
 	/** 从指定 World 的 WorldSettings 中获取当前 ExperienceDefinition（CDO） */
-	UE_API static const USVBaseExperienceDefinition* GetCurrentExperienceDefinition(const UWorld* World);
+	UFUNCTION(BlueprintCallable, Category = "Experience", meta = (WorldContext = "WorldContextObject"))
+	static UE_API const USVBaseExperienceDefinition* GetCurrentExperienceDefinition(const UObject* WorldContextObject);
 
 	//~ Begin UObject Interface
 #if WITH_EDITOR
@@ -114,13 +115,29 @@ class USVLoginExperienceDefinition : public USVBaseExperienceDefinition
 	GENERATED_BODY()
 
 public:
+	/** 从指定 World 的 WorldSettings 中获取当前 Login ExperienceDefinition（CDO），内部自动 Cast */
+	UFUNCTION(BlueprintCallable, Category = "Experience", meta = (WorldContext = "WorldContextObject"))
+	static UE_API const USVLoginExperienceDefinition* GetCurrentLoginExperienceDefinition(const UObject* WorldContextObject);
+
 	/** Press Start 界面类 */
 	UPROPERTY(EditAnywhere, Category = "UI")
 	TSoftClassPtr<UCommonActivatableWidget> PressStartScreenClass;
 
 	/** 着色器编译界面类 */
-	UPROPERTY(EditAnywhere, Category = "UI")
+	UPROPERTY(EditAnywhere, Category = "UI|Shader Screen")
 	TSoftClassPtr<UCommonActivatableWidget> CompilingShadersScreenClass;
+
+	/** 是否强制开启着色器编译界面 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Shader Screen")
+	bool bForceShowCompilingShadersScreen = false;
+
+	/** 强制开启着色器界面的持续时间（秒） */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Shader Screen", meta = (ForceUnits = s, ClampMin = "2.0", ClampMax = "10.0", EditCondition = "bForceShowCompilingShadersScreen"))
+	float CompilingShadersScreenForceDuration = 3.0f;
+
+	/** 编辑器中是否也需要开启着色器界面 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "UI|Shader Screen", meta = (EditCondition = "bForceShowCompilingShadersScreen"))
+	bool bEnableCompilingShadersInEditor = false;
 };
 
 #undef UE_API

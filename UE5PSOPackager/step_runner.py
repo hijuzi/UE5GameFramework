@@ -182,7 +182,7 @@ class StepRunner(QObject):
             self.step_status_signal.emit(3, StepStatus.FAILED.value)
 
     def launch_step9_game(self):
-        """由 UI 触发：Step 9 用 -logpso 参数打开打包程序"""
+        """由 UI 触发：Step 9 根据配置参数打开打包程序"""
         if not self._project:
             return
         exe_path = self._find_packaged_exe()
@@ -191,12 +191,37 @@ class StepRunner(QObject):
             log_dir = Path(self._project.output_dir) / "Windows" / self._project.name / "Saved" / "Logs"
             log_dir.mkdir(parents=True, exist_ok=True)
             log_file = log_dir / f"{self._project.name}_PSOTest.log"
-            self._log("INFO", f"Step 9 启动游戏（-logpso，日志: {log_file}）")
+
+            # 从 UI 参数或项目配置读取
+            step9_logpso = self._ui_params.get("logpso", getattr(self._project, 'step9_logpso', True))
+            if isinstance(step9_logpso, str):
+                step9_logpso = step9_logpso.lower() in ("true", "1", "yes")
+            step9_auto_close = self._ui_params.get("auto_close_minutes", getattr(self._project, 'step9_auto_close_minutes', 60))
+            if isinstance(step9_auto_close, str):
+                try:
+                    step9_auto_close = int(step9_auto_close)
+                except (ValueError, TypeError):
+                    step9_auto_close = 60
+            step9_auto_close = max(60, min(14400, int(step9_auto_close) if step9_auto_close else 60))
+
+            # 回写项目配置
+            self._project.step9_logpso = step9_logpso
+            self._project.step9_auto_close_minutes = step9_auto_close
+
+            # 构建参数
+            args_parts = []
+            if step9_logpso:
+                args_parts.append(f'-logpso -log="{log_file}"')
+
+            extra_str = " ".join(args_parts)
+            self._log("INFO", f"Step 9 启动游戏 ({extra_str.strip() if extra_str else '无额外参数'})，"
+                              f"自动关闭超时: {step9_auto_close} 分钟")
             # 先关闭旧进程
             self._terminate_game_process()
             try:
+                cmd = f'"{exe_path}" {extra_str}'.strip()
                 self._game_process = subprocess.Popen(
-                    f'"{exe_path}" -logpso -log="{log_file}"',
+                    cmd,
                     cwd=str(exe_dir),
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -1766,21 +1791,33 @@ class StepRunner(QObject):
 
         self._step9_request_close = False
 
+        # 读取 Step 9 配置参数
+        step9_logpso = getattr(proj, 'step9_logpso', True)
+        step9_auto_close_minutes = max(60, min(14400, getattr(proj, 'step9_auto_close_minutes', 60)))
+
+        # 构建启动参数
+        launch_args = []
+        if step9_logpso:
+            launch_args.append(f"-logpso -log={log_filename}")
+        launch_args_str = " ".join(launch_args)
+
+        wait_after_close = 3  # 关闭后等待刷新日志的秒数
         self._log("INFO", "")
-        self._log("INFO", "启动打包程序（带 -logpso 参数），请在游戏中遍历所有场景...")
-        self._log("INFO", "测试完成后点击「关闭游戏」按钮，工具会等待 3s 刷写日志后自动关闭游戏并分析")
+        self._log("INFO", f"启动打包程序（{launch_args_str.strip() if launch_args_str else '无额外参数'}），请在游戏中遍历所有场景...")
+        self._log("INFO", f"测试完成后点击「关闭游戏」按钮，工具会等待 {wait_after_close}s 刷写日志后自动关闭游戏并分析")
+        self._log("INFO", f"自动关闭超时: {step9_auto_close_minutes} 分钟")
         self._log("INFO", "")
 
-        # 使用 -logpso 启动游戏（-log= 只接受文件名，不含路径）
+        # 启动游戏
         try:
             exe_dir = Path(exe_path).parent
             exe_name = Path(exe_path).name
 
-            cmd = f'"{exe_path}" -logpso -log={log_filename}'
+            cmd = f'"{exe_path}" {launch_args_str}'.strip()
             self._log("INFO", f">> {cmd}")
 
             self._game_process = subprocess.Popen(
-                f'"{exe_path}" -logpso -log={log_filename}',
+                cmd,
                 cwd=str(exe_dir),
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -1791,8 +1828,8 @@ class StepRunner(QObject):
 
             self.step9_panel_signal.emit(True)
 
-            # 等待游戏退出
-            MAX_WAIT = 60  # 最多等 1 分钟
+            # 等待游戏退出（使用配置的自动关闭时间）
+            MAX_WAIT = step9_auto_close_minutes * 60  # 转换为秒
             POLL_INTERVAL = 2
             waited = 0
 
@@ -1816,7 +1853,7 @@ class StepRunner(QObject):
                     self._log("INFO", f"等待游戏退出... ({waited}s)")
 
                 if waited >= MAX_WAIT:
-                    self._log("WARNING", f"等待超时 ({MAX_WAIT}s)，强制关闭游戏")
+                    self._log("WARNING", f"等待超时 ({step9_auto_close_minutes} 分钟/{MAX_WAIT}s)，强制关闭游戏")
                     self._terminate_game_process()
                     break
 

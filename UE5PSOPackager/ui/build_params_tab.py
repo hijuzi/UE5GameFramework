@@ -32,6 +32,7 @@ class _WorkerThread(QThread):
         self._target()
 from ui.config_tab import (
     _FIRST_FINAL_PARAMS, _CACHE_CONVERT_PARAMS, _PSO_COLLECT_PARAMS,
+    _STEP9_TEST_PARAMS,
     _create_param_table, _fill_param_rows, _clear_param_rows,
     _browse_dir, _browse_file,
 )
@@ -41,6 +42,7 @@ _STEP_FIRST_BUILD = 2    # Step 2: 首次打包
 _STEP_COLLECT_PSO = 3    # Step 3: 收集 PSO
 _STEP_CACHE_CONVERT = 6  # Step 6: 转换缓存
 _STEP_FINAL_BUILD = 8    # Step 8: 最终打包
+_STEP_TEST_PSO = 9       # Step 9: 测试 PSO 覆盖范围
 
 
 class BuildParamsTab(QWidget):
@@ -58,6 +60,7 @@ class BuildParamsTab(QWidget):
         self._pso_collect_rows: dict[str, tuple] = {}
         self._cache_convert_rows: dict[str, tuple] = {}
         self._final_build_rows: dict[str, tuple] = {}
+        self._step9_test_rows: dict[str, tuple] = {}
 
         # 执行状态
         self._running = False
@@ -66,7 +69,7 @@ class BuildParamsTab(QWidget):
 
         self._setup_ui()
 
-    _STEP_NAMES = {2: "首次打包", 3: "PSO 收集", 6: "转换缓存", 8: "最终打包"}
+    _STEP_NAMES = {2: "首次打包", 3: "PSO 收集", 6: "转换缓存", 8: "最终打包", 9: "测试PSO覆盖"}
 
     # ---- 按钮配色与图标 ----
     _BTN_STYLE = {
@@ -78,6 +81,8 @@ class BuildParamsTab(QWidget):
                    "text": "执行缓存转换", "running_text": "\u23F3 执行中..."},
         "final":  {"icon": "\U0001F4E6 ",       "color": "#8B5CF6", "hover": "#A78BFA", "press": "#6D3FD6",
                    "text": "执行最终打包", "running_text": "\u23F3 执行中..."},
+        "step9":  {"icon": "\U0001F50D ",       "color": "#2E86AB", "hover": "#3AA8CC", "press": "#247090",
+                   "text": "启动测试PSO游戏", "running_text": "\u23F3 启动中..."},
     }
 
     def _setup_ui(self):
@@ -165,6 +170,16 @@ class BuildParamsTab(QWidget):
             fgl.addWidget(widget[0])
         cl.addWidget(fg)
 
+        # Part 5: 测试PSO覆盖范围
+        step9g = QGroupBox("  测试PSO覆盖范围")
+        step9g.setStyleSheet(gb_style)
+        step9l = QVBoxLayout(step9g)
+        step9l.setSpacing(2)
+        self._step9_test_rows = _create_param_table(_STEP9_TEST_PARAMS, self, font_scale=1.2)
+        for widget in self._step9_test_rows.values():
+            step9l.addWidget(widget[0])
+        cl.addWidget(step9g)
+
         cl.addStretch()
         scroll.setWidget(content)
         left_layout.addWidget(scroll)
@@ -211,6 +226,17 @@ class BuildParamsTab(QWidget):
         btn_row2.addWidget(self._btn_final_build)
 
         btn_card_layout.addLayout(btn_row2)
+
+        btn_row3 = QHBoxLayout()
+        btn_row3.setSpacing(8)
+
+        self._btn_step9_test = self._make_action_btn("step9")
+        self._btn_step9_test.clicked.connect(self._on_launch_step9_test)
+        self._btn_step9_test.setVisible(False)  # TODO: 暂时屏蔽
+        btn_row3.addWidget(self._btn_step9_test)
+
+        btn_card_layout.addLayout(btn_row3)
+
         right_layout.addWidget(btn_card)
 
         # ---- 执行详情卡片 ----
@@ -349,6 +375,7 @@ class BuildParamsTab(QWidget):
         self._populate_pso_collect_params()
         self._populate_cache_convert_params()
         self._populate_final_build_params()
+        self._populate_step9_test_params()
 
     # ---- 首次 / 最终打包参数填充 ----
 
@@ -443,6 +470,24 @@ class BuildParamsTab(QWidget):
         }
         _fill_param_rows(rows, defaults)
 
+    def _populate_step9_test_params(self):
+        """填充 Step 9 测试PSO覆盖范围 参数表格"""
+        proj = self._config.get_project(self._current_project_index)
+        rows = self._step9_test_rows
+        if not proj:
+            _clear_param_rows(rows)
+            return
+
+        self._runner.set_project(self._current_project_index)
+        exe_path = self._runner._get_expected_exe_path()
+
+        defaults = {
+            "game_exe":           exe_path,
+            "logpso":             getattr(proj, 'step9_logpso', True),
+            "auto_close_minutes": str(getattr(proj, 'step9_auto_close_minutes', 60)),
+        }
+        _fill_param_rows(rows, defaults)
+
     # ---- 独立执行按钮 ----
 
     # step_index → rows 属性名 映射
@@ -451,6 +496,7 @@ class BuildParamsTab(QWidget):
         _STEP_COLLECT_PSO: "_pso_collect_rows",
         _STEP_CACHE_CONVERT: "_cache_convert_rows",
         _STEP_FINAL_BUILD: "_final_build_rows",
+        _STEP_TEST_PSO: "_step9_test_rows",
     }
 
     def _collect_ui_params(self, rows: dict) -> dict:
@@ -502,9 +548,44 @@ class BuildParamsTab(QWidget):
             pass
 
     def _on_launch_log(self, level: str, message: str):
-        """捕获 launch_pso_collection_game 的日志输出到执行详情"""
+        """捕获 launch 相关方法的日志输出到执行详情"""
         color = {"SUCCESS": "#4ECB71", "ERROR": "#E0556A", "WARNING": "#D4A843", "INFO": "#AAAAAA"}.get(level, "#CCCCCC")
         self._log_output.appendHtml(f'<span style="color:{color}">{message}</span>')
+
+    def _on_launch_step9_test(self):
+        """启动 Step 9 测试PSO覆盖游戏并更新执行详情"""
+        proj = self._config.get_project(self._current_project_index)
+        if not proj:
+            return
+        self._runner.set_project(self._current_project_index)
+        # 收集 UI 参数传给 runner
+        ui_params = self._collect_ui_params(self._step9_test_rows)
+        # 解析 auto_close_minutes 为 int
+        if "auto_close_minutes" in ui_params:
+            try:
+                ui_params["auto_close_minutes"] = int(ui_params["auto_close_minutes"])
+            except (ValueError, TypeError):
+                ui_params["auto_close_minutes"] = 60
+        self._runner.set_ui_params(ui_params)
+
+        # 清空日志窗口并显示步骤头
+        self._log_output.clear()
+        self._result_card.setVisible(False)
+        step_name = self._STEP_NAMES.get(_STEP_TEST_PSO, "测试PSO覆盖")
+        ts = datetime.now().strftime("%H:%M:%S")
+        self._log_output.appendPlainText(f"══ {step_name} ══")
+        self._log_output.appendPlainText(f"[{ts}] 正在启动…\n")
+
+        # 临时连接 runner 日志信号以捕获启动日志
+        self._runner.log_signal.connect(self._on_launch_log)
+
+        self._runner.launch_step9_game()
+
+        # 断开临时信号
+        try:
+            self._runner.log_signal.disconnect(self._on_launch_log)
+        except (TypeError, RuntimeError):
+            pass
 
     def _on_run_cache_convert(self):
         self._start_run(_STEP_CACHE_CONVERT)
@@ -606,7 +687,7 @@ class BuildParamsTab(QWidget):
             self._btn_open_rec_dir.setVisible(True)
             self._btn_open_shk_dir.setVisible(True)
             self._btn_open_spc_dir.setVisible(True)
-        elif step_index in (_STEP_FIRST_BUILD, _STEP_COLLECT_PSO, _STEP_FINAL_BUILD):
+        elif step_index in (_STEP_FIRST_BUILD, _STEP_COLLECT_PSO, _STEP_FINAL_BUILD, _STEP_TEST_PSO):
             self._last_step_type = "build"
             self._btn_launch_game.setVisible(True)
             self._btn_close_game.setVisible(True)
@@ -637,6 +718,7 @@ class BuildParamsTab(QWidget):
             (self._btn_pso_collect, "pso"),
             (self._btn_cache_convert, "cache"),
             (self._btn_final_build, "final"),
+            (self._btn_step9_test, "step9"),
         ]
         for btn, key in mapping:
             btn.setEnabled(not running)

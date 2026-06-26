@@ -41,6 +41,10 @@
 		{
 			"Name": "CommonUI",
 			"Enabled": true
+		},
+		{
+			"Name": "PSOCacheSystem",
+			"Enabled": true
 		}
 	],
 	"Modules": [

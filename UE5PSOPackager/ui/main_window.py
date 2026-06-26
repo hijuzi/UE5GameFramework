@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
 
     def _setup_window(self):
         self.setWindowTitle(f"UE5 PSOPackager  v{__version__}")
-        self.resize(1500, 940)
+        self.resize(1600, 940)
         self.setMinimumSize(1300, 760)
 
     def _setup_menu(self):
@@ -151,6 +151,8 @@ class MainWindow(QMainWindow):
         self._current_project_index = index
         self._runner.set_project(index)
         self._log_widget.append_log("INFO", f"[项目切换] 当前项目: {self._config.projects[index].name}")
+        # 同步配置管理标签页的项目列表高亮
+        self._config_tab.select_project_external(index)
         # 同步刷新打包参数标签页
         proj = self._config.get_project(index)
         ue_ver = proj.ue5_version if proj else ""
@@ -159,6 +161,14 @@ class MainWindow(QMainWindow):
     def _on_build_params_selection_changed(self, proj_index: int, ue_ver: str):
         """配置管理页面切换 UE 版本或项目时同步刷新打包参数"""
         self._build_params_tab.refresh(proj_index, ue_ver)
+        # 同步顶部「当前项目」下拉框
+        if proj_index >= 0 and proj_index != self._current_project_index:
+            self._current_project_index = proj_index
+            self._runner.set_project(proj_index)
+            self._project_selector.blockSignals(True)
+            if proj_index < self._project_selector.count():
+                self._project_selector.setCurrentIndex(proj_index)
+            self._project_selector.blockSignals(False)
 
     # ---- 日志 ----
 

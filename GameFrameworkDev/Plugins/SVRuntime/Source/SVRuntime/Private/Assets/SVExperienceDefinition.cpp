@@ -31,8 +31,14 @@ void USVBaseExperienceDefinition::UpdateAssetBundleData()
 }
 #endif
 
-const USVBaseExperienceDefinition* USVBaseExperienceDefinition::GetCurrentExperienceDefinition(const UWorld* World)
+const USVBaseExperienceDefinition* USVBaseExperienceDefinition::GetCurrentExperienceDefinition(const UObject* WorldContextObject)
 {
+	if (!WorldContextObject)
+	{
+		return nullptr;
+	}
+
+	const UWorld* World = WorldContextObject->GetWorld();
 	if (!World)
 	{
 		return nullptr;
@@ -47,6 +53,11 @@ const USVBaseExperienceDefinition* USVBaseExperienceDefinition::GetCurrentExperi
 	}
 
 	return nullptr;
+}
+
+const USVLoginExperienceDefinition* USVLoginExperienceDefinition::GetCurrentLoginExperienceDefinition(const UObject* WorldContextObject)
+{
+	return Cast<USVLoginExperienceDefinition>(USVBaseExperienceDefinition::GetCurrentExperienceDefinition(WorldContextObject));
 }
 
 #undef LOCTEXT_NAMESPACE
