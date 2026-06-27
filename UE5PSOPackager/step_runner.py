@@ -240,16 +240,33 @@ class StepRunner(QObject):
         self._step9_request_close = True
 
     def _get_expected_exe_path(self) -> str:
-        """根据项目配置构造预期的打包 exe 路径（不检查文件是否存在）"""
+        """根据项目配置构造预期的打包 exe 路径
+
+        优先返回已存在的 exe（与 _find_packaged_exe 候选列表一致）；
+        如果都不存在，返回 UAT -archive 最常见的输出路径。
+        """
         if not self._project:
             return ""
         proj_name = self._project.name
         output_dir = Path(self._project.output_dir)
-        # 尝试两级结构：Windows/<Name>.exe 优先（直接访问），否则 Windows/<Name>/<Name>.exe
-        direct = output_dir / "Windows" / f"{proj_name}.exe"
-        if direct.is_file():
-            return str(direct)
-        return str(output_dir / "Windows" / proj_name / f"{proj_name}.exe")
+
+        # 候选列表：按优先级尝试已存在的路径
+        candidates = [
+            output_dir / "Windows" / f"{proj_name}.exe",
+            output_dir / "Windows" / proj_name / f"{proj_name}.exe",
+            output_dir / "Windows" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
+            output_dir / "WindowsClient" / f"{proj_name}.exe",
+            output_dir / "WindowsClient" / proj_name / f"{proj_name}.exe",
+            output_dir / "WindowsClient" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
+            output_dir / proj_name / f"{proj_name}.exe",
+            output_dir / f"{proj_name}.exe",
+        ]
+        for candidate in candidates:
+            if candidate.is_file():
+                return str(candidate)
+
+        # 都不存在（打包前）：返回最常见的 UAT -archive 输出路径
+        return str(output_dir / proj_name / f"{proj_name}.exe")
 
     def _find_packaged_exe(self) -> Optional[str]:
         """在打包输出目录中搜索 .exe 文件，返回完整路径或 None"""
@@ -265,13 +282,14 @@ class StepRunner(QObject):
 
         # 按优先顺序尝试多个模式（UAT -archive 产出的常见路径结构）
         candidates = [
+            output_dir / proj_name / f"{proj_name}.exe",
             output_dir / "Windows" / f"{proj_name}.exe",
             output_dir / "Windows" / proj_name / f"{proj_name}.exe",
+            output_dir / f"{proj_name}.exe",
             output_dir / "Windows" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
             output_dir / "WindowsClient" / f"{proj_name}.exe",
             output_dir / "WindowsClient" / proj_name / f"{proj_name}.exe",
             output_dir / "WindowsClient" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
-            output_dir / f"{proj_name}.exe",
         ]
 
         for candidate in candidates:
