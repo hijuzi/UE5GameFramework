@@ -852,16 +852,16 @@ class BuildParamsTab(QWidget):
 
         output_dir = Path(proj.output_dir)
         # 候选目录：优先 exe 所在目录，逐级降级
-        uproject_name = proj.get_uproject_name()
+        uproject_stem = proj.get_uproject_stem()   # 打包目录文件夹名
         candidates = [
-            output_dir / uproject_name,
-            output_dir / uproject_name / "Binaries" / "Win64",
+            output_dir / uproject_stem,
+            output_dir / uproject_stem / "Binaries" / "Win64",
             output_dir / "Windows",
-            output_dir / "Windows" / uproject_name / "Binaries" / "Win64",
-            output_dir / "Windows" / uproject_name,
+            output_dir / "Windows" / uproject_stem / "Binaries" / "Win64",
+            output_dir / "Windows" / uproject_stem,
             output_dir / "WindowsClient",
-            output_dir / "WindowsClient" / uproject_name / "Binaries" / "Win64",
-            output_dir / "WindowsClient" / uproject_name,
+            output_dir / "WindowsClient" / uproject_stem / "Binaries" / "Win64",
+            output_dir / "WindowsClient" / uproject_stem,
         ]
         for d in candidates:
             if d.is_dir():
@@ -870,14 +870,14 @@ class BuildParamsTab(QWidget):
                 return
 
         # 降级：即使不是目录，尝试通过 exe 定位其父目录
-        exe_name = f"{uproject_name}.exe"
+        exe_name = f"{proj.get_uproject_name()}.exe"   # EXE 二进制名
         exe_candidates = [
-            output_dir / uproject_name / exe_name,
+            output_dir / uproject_stem / exe_name,
             output_dir / "Windows" / exe_name,
-            output_dir / "Windows" / uproject_name / exe_name,
+            output_dir / "Windows" / uproject_stem / exe_name,
             output_dir / exe_name,
             output_dir / "WindowsClient" / exe_name,
-            output_dir / "WindowsClient" / uproject_name / exe_name,
+            output_dir / "WindowsClient" / uproject_stem / exe_name,
         ]
         for exe_path in exe_candidates:
             if exe_path.is_file():

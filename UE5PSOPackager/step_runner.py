@@ -25,6 +25,7 @@ PSO_REQUIRED_CONFIGS = {
     "DefaultEngine.ini": {
         "ConsoleVariables": [
             ("r.ShaderPipelineCache.Enabled", "1", "启用 Shader Pipeline Cache"),
+            ("r.ShaderPipelineCache.SaveUserCache", "1", "退出时保存 PSO 缓存到磁盘"),
             ("r.ShaderPipelineCache.LogPSO", "1", "记录 PSO"),
             ("r.ShaderPipelineCache.SaveBoundPSOLog", "1", "保存绑定 PSO 日志"),
             ("r.ShaderPipelineCache.BackgroundBatchSize", "1", "后台批处理大小"),
@@ -191,10 +192,10 @@ class StepRunner(QObject):
         exe_path = self._find_packaged_exe()
         if exe_path:
             exe_dir = Path(exe_path).parent
-            uproject_name = self._project.get_uproject_name()
-            log_dir = Path(self._project.output_dir) / "Windows" / uproject_name / "Saved" / "Logs"
+            uproject_stem = self._project.get_uproject_stem()
+            log_dir = Path(self._project.output_dir) / "Windows" / uproject_stem / "Saved" / "Logs"
             log_dir.mkdir(parents=True, exist_ok=True)
-            log_file = log_dir / f"{uproject_name}_PSOTest.log"
+            log_file = log_dir / f"{uproject_stem}_PSOTest.log"
 
             # 从 UI 参数或项目配置读取
             step9_logpso = self._ui_params.get("logpso", getattr(self._project, 'step9_logpso', True))
@@ -248,33 +249,40 @@ class StepRunner(QObject):
         """
         if not self._project:
             return ""
-        exe_name = f"{self._project.get_uproject_name()}.exe"
+        exe_name = f"{self._project.get_uproject_name()}.exe"     # EXE 二进制名（可能不同于 uproject 文件名）
+        uproject_stem = self._project.get_uproject_stem()          # 打包目录文件夹名
         output_dir = Path(self._project.output_dir)
 
         # 候选列表：按优先级尝试已存在的路径（与 _find_packaged_exe 保持一致）
         candidates = [
-            output_dir / self._project.get_uproject_name() / exe_name,
+            output_dir / uproject_stem / exe_name,
             output_dir / "Windows" / exe_name,
-            output_dir / "Windows" / self._project.get_uproject_name() / exe_name,
+            output_dir / "Windows" / uproject_stem / exe_name,
             output_dir / exe_name,
-            output_dir / "Windows" / self._project.get_uproject_name() / "Binaries" / "Win64" / exe_name,
+            output_dir / "Windows" / uproject_stem / "Binaries" / "Win64" / exe_name,
             output_dir / "WindowsClient" / exe_name,
-            output_dir / "WindowsClient" / self._project.get_uproject_name() / exe_name,
-            output_dir / "WindowsClient" / self._project.get_uproject_name() / "Binaries" / "Win64" / exe_name,
+            output_dir / "WindowsClient" / uproject_stem / exe_name,
+            output_dir / "WindowsClient" / uproject_stem / "Binaries" / "Win64" / exe_name,
         ]
         for candidate in candidates:
             if candidate.is_file():
                 return str(candidate)
 
         # 都不存在（打包前）：返回最常见的 UAT -archive 输出路径
-        return str(output_dir / "Windows" / exe_name)
+        return str(output_dir / "Windows" / uproject_stem / exe_name)
 
     def _find_packaged_exe(self) -> Optional[str]:
-        """在打包输出目录中搜索 .exe 文件，返回完整路径或 None"""
+        """在打包输出目录中搜索 .exe 文件，返回完整路径或 None
+        
+        EXE 文件名由 Build Target 决定（get_uproject_name），
+        打包目录文件夹名由 .uproject 文件名决定（get_uproject_stem）。
+        两者可能不同（如 LyraStarterGame56.uproject → 目录 LyraStarterGame56/，EXE LyraGame.exe）。
+        """
         if not self._project:
             return None
 
-        exe_name = f"{self._project.get_uproject_name()}.exe"
+        exe_name = f"{self._project.get_uproject_name()}.exe"     # EXE 二进制名
+        uproject_stem = self._project.get_uproject_stem()          # 打包目录文件夹名
         output_dir = Path(self._project.output_dir)
 
         if not output_dir.exists():
@@ -283,14 +291,14 @@ class StepRunner(QObject):
 
         # 按优先顺序尝试多个模式（UAT -archive 产出的常见路径结构）
         candidates = [
-            output_dir / self._project.get_uproject_name() / exe_name,
+            output_dir / uproject_stem / exe_name,
             output_dir / "Windows" / exe_name,
-            output_dir / "Windows" / self._project.get_uproject_name() / exe_name,
+            output_dir / "Windows" / uproject_stem / exe_name,
             output_dir / exe_name,
-            output_dir / "Windows" / self._project.get_uproject_name() / "Binaries" / "Win64" / exe_name,
+            output_dir / "Windows" / uproject_stem / "Binaries" / "Win64" / exe_name,
             output_dir / "WindowsClient" / exe_name,
-            output_dir / "WindowsClient" / self._project.get_uproject_name() / exe_name,
-            output_dir / "WindowsClient" / self._project.get_uproject_name() / "Binaries" / "Win64" / exe_name,
+            output_dir / "WindowsClient" / uproject_stem / exe_name,
+            output_dir / "WindowsClient" / uproject_stem / "Binaries" / "Win64" / exe_name,
         ]
 
         for candidate in candidates:
@@ -1432,7 +1440,7 @@ class StepRunner(QObject):
             # 0. 先备份旧包中已有的 PSO 记录（CollectedPSOs），防止清理后被误删
             backup_rec_dir = None
             old_rec_dir = (Path(self._project.output_dir) / "Windows"
-                           / self._project.get_uproject_name() / "Saved" / "CollectedPSOs")
+                           / self._project.get_uproject_stem() / "Saved" / "CollectedPSOs")
             if old_rec_dir.exists():
                 rec_files = list(old_rec_dir.glob("*.rec.upipelinecache"))
                 if rec_files:
@@ -1485,7 +1493,8 @@ class StepRunner(QObject):
 
         rec_dir = Path(proj.resolve_packaged_rec_source_dir())
         output_dir = proj.output_dir
-        exe_dir = str(Path(output_dir) / "Windows" / proj.get_uproject_name() / "Binaries" / "Win64")
+        uproject_stem = proj.get_uproject_stem()
+        exe_dir = str(Path(output_dir) / "Windows" / uproject_stem / "Binaries" / "Win64")
 
         self._add_step_detail(f"监听目录: {rec_dir}")
         self._add_step_detail(f"打包输出: {output_dir}")
@@ -1687,18 +1696,6 @@ class StepRunner(QObject):
         # PSO 收集阶段结束，关闭游戏进程
         self._terminate_game_process()
         self._add_step_detail(f"等待总耗时: {waited}s")
-
-        # 将打包目录下的 .rec 文件同步到项目目录，供 Step 4/5 使用
-        proj_rec_dir = Path(proj.resolve_rec_source_dir())
-        if rec_dir != proj_rec_dir and rec_dir.exists():
-            proj_rec_dir.mkdir(parents=True, exist_ok=True)
-            copied = 0
-            for f in rec_dir.glob("*.rec.upipelinecache"):
-                shutil.copy2(f, proj_rec_dir / f.name)
-                copied += 1
-            if copied > 0:
-                self._log("SUCCESS", f"已同步 {copied} 个 .rec 文件到项目目录: {proj_rec_dir}")
-                self._add_step_detail(f"同步 {copied} 个 .rec 到 {proj_rec_dir}")
 
         self._print_summary(rec_dir)
         return True
@@ -1985,10 +1982,10 @@ class StepRunner(QObject):
 
         self._add_step_detail(f"程序: {exe_path}")
 
-        # 日志文件路径
-        log_dir = Path(proj.output_dir) / "Windows" / proj.name / "Saved" / "Logs"
+        # 日志文件路径（打包目录文件夹名使用 .uproject 文件名）
+        log_dir = Path(proj.output_dir) / "Windows" / proj.get_uproject_stem() / "Saved" / "Logs"
         log_dir.mkdir(parents=True, exist_ok=True)
-        log_filename = f"{proj.name}_PSOTest.log"
+        log_filename = f"{proj.get_uproject_stem()}_PSOTest.log"
         log_file = log_dir / log_filename
 
         self._add_step_detail(f"日志: {log_file}")

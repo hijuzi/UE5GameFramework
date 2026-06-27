@@ -88,7 +88,7 @@ class ProjectConfig:
         return errors
 
     def get_uproject_name(self) -> str:
-        """获取 UE 打包时使用的项目名称（决定 exe 文件名和目录结构）
+        """获取 UE 打包时的可执行文件名称（exe 文件名）
         
         UE 打包的 exe 名称由 Build Target 决定，而非 .uproject 的 Modules。
         Target 名称来自 Source/*.Target.cs 文件名。
@@ -98,6 +98,9 @@ class ProjectConfig:
         2. Source/ 目录下的 Game Target 名称（不含 Editor/Server/Client 后缀的 .Target.cs）
         3. .uproject 文件名（去掉 .uproject 后缀）
         4. 降级到 self.name
+        
+        **注意**：此方法返回的是 EXE 二进制文件名，不是打包目录中的文件夹名。
+        打包目录 `Windows/` 下的文件夹名需使用 `get_uproject_stem()`。
         
         读取失败时降级返回 self.name。
         """
@@ -139,21 +142,57 @@ class ProjectConfig:
         except (json.JSONDecodeError, OSError):
             return self.name
 
+    def get_uproject_stem(self) -> str:
+        """获取 .uproject 文件名（不含扩展名）
+        
+        这是打包输出目录中 `Windows/<name>/` 的文件夹名，
+        以及 `Saved/Cooked/Windows/<name>/` 的文件夹名。
+        
+        UE 的 UAT -archive 使用 .uproject 文件名作为 Stage 目录名，
+        与 .uproject 内部 JSON 的 Name 字段可能不同。
+        
+        示例：
+        - uproject 文件：LyraStarterGame56.uproject → 返回 "LyraStarterGame56"
+        - uproject JSON Name 字段："LyraGame"（不影响此方法）
+        """
+        if not self.uproject_file:
+            return self.name
+        try:
+            uproject_path = Path(self.uproject_file)
+            if not uproject_path.exists():
+                return self.name
+            return uproject_path.stem
+        except (OSError, ValueError):
+            return self.name
+
     def resolve_shk_source_dir(self) -> str:
-        """解析 .shk 源目录（替换 {project_name} 占位符）"""
+        """解析 .shk 源目录（替换 {project_name} 占位符）
+        
+        .shk 文件由 Cook 阶段生成，位于项目源码目录下：
+        {project_dir}/Saved/Cooked/Windows/{uproject_stem}/Metadata/PipelineCaches
+        
+        文件夹名使用 .uproject 文件名（非内部 Name 字段）。
+        """
         base = self.project_dir
-        rel = self.shk_source_relative.replace("{project_name}", self.get_uproject_name())
+        rel = self.shk_source_relative.replace("{project_name}", self.get_uproject_stem())
         return str(Path(base) / rel)
 
     def resolve_rec_source_dir(self) -> str:
-        """解析 .rec 源目录（项目源码目录）"""
-        return str(Path(self.project_dir) / self.rec_source_relative)
+        """解析 .rec 源目录（打包游戏运行时收集的 PSO 记录）
+        
+        .rec.upipelinecache 文件由打包游戏运行时产生，位于输出目录下：
+        output_dir/Windows/{uproject_stem}/Saved/CollectedPSOs
+        """
+        base = Path(self.output_dir) / "Windows" / self.get_uproject_stem()
+        return str(base / self.rec_source_relative)
 
     def resolve_packaged_rec_source_dir(self) -> str:
         """解析打包后游戏的 .rec 源目录
-        打包游戏位于 output_dir/Windows/{project_name}/，其 Saved 目录也在该位置下
+        
+        打包游戏位于 output_dir/Windows/{uproject_stem}/，其 Saved 目录也在该位置下。
+        文件夹名使用 .uproject 文件名（非内部 Name 字段）。
         """
-        return str(Path(self.output_dir) / "Windows" / self.get_uproject_name() / self.rec_source_relative)
+        return str(Path(self.output_dir) / "Windows" / self.get_uproject_stem() / self.rec_source_relative)
 
     def resolve_spc_target_dir(self) -> str:
         """解析 .spc 目标目录"""
