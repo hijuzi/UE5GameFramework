@@ -16,7 +16,7 @@ from typing import Optional, Callable
 
 from PySide6.QtCore import QObject, Signal
 
-from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig, read_shader_formats_from_ini
+from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig, get_default_shader_format
 from step_definitions import StepStatus
 
 
@@ -1405,7 +1405,7 @@ class StepRunner(QObject):
         if self._project:
             self._add_step_detail(f"项目: {self._project.name}")
             self._add_step_detail(f"平台: {self._project.target_platform}")
-            self._add_step_detail(f"Shader 格式: {self._ui_params.get('shader_formats') or read_shader_formats_from_ini(self._project.project_dir)}")
+            self._add_step_detail(f"Shader 格式: {self._ui_params.get('shader_formats') or get_default_shader_format(self._project.project_dir)}")
             self._add_step_detail(f"输出: {self._project.output_dir}")
 
             # 首次打包前清理旧的打包输出和 Cook 缓存，确保干净构建
@@ -2239,7 +2239,7 @@ class StepRunner(QObject):
         output_dir = self._project.output_dir
         platform = self._ui_params.get("platform") or self._project.target_platform
         build_config = self._ui_params.get("config") or "Development"
-        shader_formats = self._ui_params.get("shader_formats") or read_shader_formats_from_ini(self._project.project_dir)
+        shader_formats = self._ui_params.get("shader_formats") or get_default_shader_format(self._project.project_dir)
 
         cmd = (
             f'"{self._ue5.uat_bat_path}"'
