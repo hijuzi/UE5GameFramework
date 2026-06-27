@@ -191,9 +191,10 @@ class StepRunner(QObject):
         exe_path = self._find_packaged_exe()
         if exe_path:
             exe_dir = Path(exe_path).parent
-            log_dir = Path(self._project.output_dir) / "Windows" / self._project.name / "Saved" / "Logs"
+            uproject_name = self._project.get_uproject_name()
+            log_dir = Path(self._project.output_dir) / "Windows" / uproject_name / "Saved" / "Logs"
             log_dir.mkdir(parents=True, exist_ok=True)
-            log_file = log_dir / f"{self._project.name}_PSOTest.log"
+            log_file = log_dir / f"{uproject_name}_PSOTest.log"
 
             # 从 UI 参数或项目配置读取
             step9_logpso = self._ui_params.get("logpso", getattr(self._project, 'step9_logpso', True))
@@ -247,33 +248,33 @@ class StepRunner(QObject):
         """
         if not self._project:
             return ""
-        proj_name = self._project.name
+        exe_name = f"{self._project.get_uproject_name()}.exe"
         output_dir = Path(self._project.output_dir)
 
-        # 候选列表：按优先级尝试已存在的路径
+        # 候选列表：按优先级尝试已存在的路径（与 _find_packaged_exe 保持一致）
         candidates = [
-            output_dir / "Windows" / f"{proj_name}.exe",
-            output_dir / "Windows" / proj_name / f"{proj_name}.exe",
-            output_dir / "Windows" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
-            output_dir / "WindowsClient" / f"{proj_name}.exe",
-            output_dir / "WindowsClient" / proj_name / f"{proj_name}.exe",
-            output_dir / "WindowsClient" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
-            output_dir / proj_name / f"{proj_name}.exe",
-            output_dir / f"{proj_name}.exe",
+            output_dir / self._project.get_uproject_name() / exe_name,
+            output_dir / "Windows" / exe_name,
+            output_dir / "Windows" / self._project.get_uproject_name() / exe_name,
+            output_dir / exe_name,
+            output_dir / "Windows" / self._project.get_uproject_name() / "Binaries" / "Win64" / exe_name,
+            output_dir / "WindowsClient" / exe_name,
+            output_dir / "WindowsClient" / self._project.get_uproject_name() / exe_name,
+            output_dir / "WindowsClient" / self._project.get_uproject_name() / "Binaries" / "Win64" / exe_name,
         ]
         for candidate in candidates:
             if candidate.is_file():
                 return str(candidate)
 
         # 都不存在（打包前）：返回最常见的 UAT -archive 输出路径
-        return str(output_dir / proj_name / f"{proj_name}.exe")
+        return str(output_dir / "Windows" / exe_name)
 
     def _find_packaged_exe(self) -> Optional[str]:
         """在打包输出目录中搜索 .exe 文件，返回完整路径或 None"""
         if not self._project:
             return None
 
-        proj_name = self._project.name
+        exe_name = f"{self._project.get_uproject_name()}.exe"
         output_dir = Path(self._project.output_dir)
 
         if not output_dir.exists():
@@ -282,14 +283,14 @@ class StepRunner(QObject):
 
         # 按优先顺序尝试多个模式（UAT -archive 产出的常见路径结构）
         candidates = [
-            output_dir / proj_name / f"{proj_name}.exe",
-            output_dir / "Windows" / f"{proj_name}.exe",
-            output_dir / "Windows" / proj_name / f"{proj_name}.exe",
-            output_dir / f"{proj_name}.exe",
-            output_dir / "Windows" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
-            output_dir / "WindowsClient" / f"{proj_name}.exe",
-            output_dir / "WindowsClient" / proj_name / f"{proj_name}.exe",
-            output_dir / "WindowsClient" / proj_name / "Binaries" / "Win64" / f"{proj_name}.exe",
+            output_dir / self._project.get_uproject_name() / exe_name,
+            output_dir / "Windows" / exe_name,
+            output_dir / "Windows" / self._project.get_uproject_name() / exe_name,
+            output_dir / exe_name,
+            output_dir / "Windows" / self._project.get_uproject_name() / "Binaries" / "Win64" / exe_name,
+            output_dir / "WindowsClient" / exe_name,
+            output_dir / "WindowsClient" / self._project.get_uproject_name() / exe_name,
+            output_dir / "WindowsClient" / self._project.get_uproject_name() / "Binaries" / "Win64" / exe_name,
         ]
 
         for candidate in candidates:
@@ -301,7 +302,7 @@ class StepRunner(QObject):
         self._log("INFO", "标准路径未找到，正在搜索打包程序...")
         try:
             for depth in (1, 2):
-                for f in output_dir.glob("/".join(["*"] * depth) + f"/{proj_name}.exe"):
+                for f in output_dir.glob("/".join(["*"] * depth) + f"/{exe_name}"):
                     self._log("SUCCESS", f"找到打包程序: {f}")
                     return str(f)
         except Exception:
@@ -365,7 +366,7 @@ class StepRunner(QObject):
         """通过 exe 名称查找并终止残留的游戏进程"""
         if not self._project:
             return
-        exe_name = f"{self._project.name}.exe"
+        exe_name = f"{self._project.get_uproject_name()}.exe"
         try:
             result = subprocess.run(
                 ["taskkill", "/F", "/IM", exe_name],
@@ -1431,7 +1432,7 @@ class StepRunner(QObject):
             # 0. 先备份旧包中已有的 PSO 记录（CollectedPSOs），防止清理后被误删
             backup_rec_dir = None
             old_rec_dir = (Path(self._project.output_dir) / "Windows"
-                           / self._project.name / "Saved" / "CollectedPSOs")
+                           / self._project.get_uproject_name() / "Saved" / "CollectedPSOs")
             if old_rec_dir.exists():
                 rec_files = list(old_rec_dir.glob("*.rec.upipelinecache"))
                 if rec_files:
@@ -1484,7 +1485,7 @@ class StepRunner(QObject):
 
         rec_dir = Path(proj.resolve_packaged_rec_source_dir())
         output_dir = proj.output_dir
-        exe_dir = str(Path(output_dir) / "Windows" / proj.name / "Binaries" / "Win64")
+        exe_dir = str(Path(output_dir) / "Windows" / proj.get_uproject_name() / "Binaries" / "Win64")
 
         self._add_step_detail(f"监听目录: {rec_dir}")
         self._add_step_detail(f"打包输出: {output_dir}")

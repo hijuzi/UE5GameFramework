@@ -831,7 +831,7 @@ class BuildParamsTab(QWidget):
             return
         self._runner.set_project(self._current_project_index)
         self._runner.close_packaged_game()
-        exe_name = f"{proj.name}.exe"
+        exe_name = f"{proj.get_uproject_name()}.exe"
         try:
             result = subprocess.run(
                 ["taskkill", "/F", "/IM", exe_name],
@@ -851,14 +851,17 @@ class BuildParamsTab(QWidget):
             return
 
         output_dir = Path(proj.output_dir)
-        # 候选目录：优先 exe 所在目录（Binaries/Win64），逐级降级
+        # 候选目录：优先 exe 所在目录，逐级降级
+        uproject_name = proj.get_uproject_name()
         candidates = [
+            output_dir / uproject_name,
+            output_dir / uproject_name / "Binaries" / "Win64",
             output_dir / "Windows",
-            output_dir / "Windows" / proj.name / "Binaries" / "Win64",
-            output_dir / "Windows" / proj.name,
+            output_dir / "Windows" / uproject_name / "Binaries" / "Win64",
+            output_dir / "Windows" / uproject_name,
             output_dir / "WindowsClient",
-            output_dir / "WindowsClient" / proj.name / "Binaries" / "Win64",
-            output_dir / "WindowsClient" / proj.name,
+            output_dir / "WindowsClient" / uproject_name / "Binaries" / "Win64",
+            output_dir / "WindowsClient" / uproject_name,
         ]
         for d in candidates:
             if d.is_dir():
@@ -867,11 +870,14 @@ class BuildParamsTab(QWidget):
                 return
 
         # 降级：即使不是目录，尝试通过 exe 定位其父目录
+        exe_name = f"{uproject_name}.exe"
         exe_candidates = [
-            output_dir / "Windows" / f"{proj.name}.exe",
-            output_dir / "Windows" / proj.name / f"{proj.name}.exe",
-            output_dir / "WindowsClient" / f"{proj.name}.exe",
-            output_dir / "WindowsClient" / proj.name / f"{proj.name}.exe",
+            output_dir / uproject_name / exe_name,
+            output_dir / "Windows" / exe_name,
+            output_dir / "Windows" / uproject_name / exe_name,
+            output_dir / exe_name,
+            output_dir / "WindowsClient" / exe_name,
+            output_dir / "WindowsClient" / uproject_name / exe_name,
         ]
         for exe_path in exe_candidates:
             if exe_path.is_file():

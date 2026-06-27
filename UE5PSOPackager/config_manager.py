@@ -87,10 +87,62 @@ class ProjectConfig:
             errors.append("未指定 PSO 缓存工作目录")
         return errors
 
+    def get_uproject_name(self) -> str:
+        """获取 UE 打包时使用的项目名称（决定 exe 文件名和目录结构）
+        
+        UE 打包的 exe 名称由 Build Target 决定，而非 .uproject 的 Modules。
+        Target 名称来自 Source/*.Target.cs 文件名。
+        
+        优先级：
+        1. .uproject 顶层的 "Name" 字段
+        2. Source/ 目录下的 Game Target 名称（不含 Editor/Server/Client 后缀的 .Target.cs）
+        3. .uproject 文件名（去掉 .uproject 后缀）
+        4. 降级到 self.name
+        
+        读取失败时降级返回 self.name。
+        """
+        if not self.uproject_file:
+            return self.name
+        try:
+            import glob
+            uproject_path = Path(self.uproject_file)
+            if not uproject_path.exists():
+                return self.name
+            with open(uproject_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            # 1. 顶层 Name 字段
+            name = data.get("Name")
+            if name:
+                return str(name)
+            
+            # 2. Source/ 目录下的 Build Target：不含 Editor/Server/Client 后缀的 .Target.cs
+            source_dir = uproject_path.parent / "Source"
+            if source_dir.is_dir():
+                target_files = list(source_dir.glob("*.Target.cs"))
+                # 排除 Editor / Server / Client target，优先纯游戏 target
+                game_targets = []
+                for tf in target_files:
+                    stem = tf.stem.replace(".Target", "")  # LyraGame.Target → LyraGame
+                    if stem.endswith("Editor") or stem.endswith("Server") or stem.endswith("Client"):
+                        continue
+                    game_targets.append(stem)
+                if game_targets:
+                    return game_targets[0]
+            
+            # 3. .uproject 文件名（去掉 .uproject 后缀）
+            stem = uproject_path.stem
+            if stem:
+                return stem
+            
+            return self.name
+        except (json.JSONDecodeError, OSError):
+            return self.name
+
     def resolve_shk_source_dir(self) -> str:
         """解析 .shk 源目录（替换 {project_name} 占位符）"""
         base = self.project_dir
-        rel = self.shk_source_relative.replace("{project_name}", self.name)
+        rel = self.shk_source_relative.replace("{project_name}", self.get_uproject_name())
         return str(Path(base) / rel)
 
     def resolve_rec_source_dir(self) -> str:
@@ -101,7 +153,7 @@ class ProjectConfig:
         """解析打包后游戏的 .rec 源目录
         打包游戏位于 output_dir/Windows/{project_name}/，其 Saved 目录也在该位置下
         """
-        return str(Path(self.output_dir) / "Windows" / self.name / self.rec_source_relative)
+        return str(Path(self.output_dir) / "Windows" / self.get_uproject_name() / self.rec_source_relative)
 
     def resolve_spc_target_dir(self) -> str:
         """解析 .spc 目标目录"""
