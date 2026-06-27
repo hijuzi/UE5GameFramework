@@ -24,6 +24,11 @@
 			"Name": "PSOCacheSystem",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "PSOCacheSystemEditor",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
 		}
 	]
 }

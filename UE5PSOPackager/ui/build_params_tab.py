@@ -1,7 +1,17 @@
 """
-BuildParamsTab - 打包参数标签页
-包含：首次打包内容、转换缓存、最终打包 三组参数预览
+BuildParamsTab - 打包参数标签页（参数管理）
+包含：首次打包、PSO收集、转换缓存、最终打包、Step9测试 五组参数预览
 每部分底部有独立执行按钮
+
+===== 设计约束（与 CI流程配置 保持一致）=====
+【主要约束】本标签页与 ci_process_tab 在功能上和设计排版上保持基本一致。
+【详细约束1】所有涉及路径的参数行，均通过 _attach_path_indicators 挂载路径有效性指示器（✅/❌）。
+            指标器刷新由 _fill_param_rows / _clear_param_rows 自动完成，无需各 _populate_* 方法单独调用。
+【详细约束2】CI流程配置中，任何执行操作（如点击"PSOCache刷新资产"）必须先检查编辑器是否打开。
+            若打开 → 弹窗询问"是否关闭编辑器后继续"，用户确认后关闭编辑器再执行，用户取消则退出。
+【详细约束3】参数管理与CI流程配置中，任何执行操作均需向日志输出区输出信息：
+            - 执行详情（_log_output）：显示执行过程的主要信息（启动、进度、中间日志）
+            - 执行结果（_result_card / _result_body）：执行完成后显示最终汇总结果（成功/失败/耗时/关键统计）
 """
 import os
 import subprocess
@@ -18,7 +28,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QWheelEvent
 
-from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig, read_shader_formats_list_from_ini
+from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig, read_shader_formats_list_from_ini, get_default_shader_format
 from step_runner import StepRunner
 
 
@@ -34,15 +44,17 @@ from ui.config_tab import (
     _FIRST_FINAL_PARAMS, _CACHE_CONVERT_PARAMS, _PSO_COLLECT_PARAMS,
     _STEP9_TEST_PARAMS,
     _create_param_table, _fill_param_rows, _clear_param_rows,
+    _attach_path_indicators,
     _browse_dir, _browse_file,
 )
 
 # 步骤索引映射
-_STEP_FIRST_BUILD = 2    # Step 2: 首次打包
-_STEP_COLLECT_PSO = 3    # Step 3: 收集 PSO
-_STEP_CACHE_CONVERT = 6  # Step 6: 转换缓存
-_STEP_FINAL_BUILD = 8    # Step 8: 最终打包
-_STEP_TEST_PSO = 9       # Step 9: 测试 PSO 覆盖范围
+_STEP_RUN_ALL_CI = 2    # Step 2: 执行全部CI流程
+_STEP_FIRST_BUILD = 3    # Step 3: 首次打包
+_STEP_COLLECT_PSO = 4    # Step 4: 收集 PSO
+_STEP_CACHE_CONVERT = 7  # Step 7: 转换缓存
+_STEP_FINAL_BUILD = 9    # Step 9: 最终打包
+_STEP_TEST_PSO = 10      # Step 10: 测试 PSO 覆盖范围
 
 
 class BuildParamsTab(QWidget):
@@ -62,6 +74,13 @@ class BuildParamsTab(QWidget):
         self._final_build_rows: dict[str, tuple] = {}
         self._step9_test_rows: dict[str, tuple] = {}
 
+        # 路径有效性指示器
+        self._first_build_indicators: dict = {}
+        self._pso_collect_indicators: dict = {}
+        self._cache_convert_indicators: dict = {}
+        self._final_build_indicators: dict = {}
+        self._step9_test_indicators: dict = {}
+
         # 执行状态
         self._running = False
         self._thread: QThread | None = None
@@ -69,7 +88,7 @@ class BuildParamsTab(QWidget):
 
         self._setup_ui()
 
-    _STEP_NAMES = {2: "首次打包", 3: "PSO 收集", 6: "转换缓存", 8: "最终打包", 9: "测试PSO覆盖"}
+    _STEP_NAMES = {3: "首次打包", 4: "PSO 收集", 7: "转换缓存", 9: "最终打包", 10: "测试PSO覆盖"}
 
     # ---- 按钮配色与图标 ----
     _BTN_STYLE = {
@@ -138,6 +157,9 @@ class BuildParamsTab(QWidget):
         self._first_build_rows = _create_param_table(_FIRST_FINAL_PARAMS, self, font_scale=1.2)
         for widget in self._first_build_rows.values():
             fbl.addWidget(widget[0])
+        self._first_build_indicators = _attach_path_indicators(
+            self._first_build_rows, {"project", "output_dir", "unreal_exe"}
+        )
         cl.addWidget(fbg)
 
         # Part 2: PSO 收集参数
@@ -148,6 +170,9 @@ class BuildParamsTab(QWidget):
         self._pso_collect_rows = _create_param_table(_PSO_COLLECT_PARAMS, self, font_scale=1.2)
         for widget in self._pso_collect_rows.values():
             psol.addWidget(widget[0])
+        self._pso_collect_indicators = _attach_path_indicators(
+            self._pso_collect_rows, {"game_exe"}
+        )
         cl.addWidget(psog)
 
         # Part 3: 转换缓存
@@ -158,6 +183,9 @@ class BuildParamsTab(QWidget):
         self._cache_convert_rows = _create_param_table(_CACHE_CONVERT_PARAMS, self, font_scale=1.2)
         for widget in self._cache_convert_rows.values():
             cgl.addWidget(widget[0])
+        self._cache_convert_indicators = _attach_path_indicators(
+            self._cache_convert_rows, {"project", "rec_source", "shk_source", "spc_target"}
+        )
         cl.addWidget(cg)
 
         # Part 4: 最终打包
@@ -168,6 +196,9 @@ class BuildParamsTab(QWidget):
         self._final_build_rows = _create_param_table(_FIRST_FINAL_PARAMS, self, font_scale=1.2)
         for widget in self._final_build_rows.values():
             fgl.addWidget(widget[0])
+        self._final_build_indicators = _attach_path_indicators(
+            self._final_build_rows, {"project", "output_dir", "unreal_exe"}
+        )
         cl.addWidget(fg)
 
         # Part 5: 测试PSO覆盖范围
@@ -178,6 +209,9 @@ class BuildParamsTab(QWidget):
         self._step9_test_rows = _create_param_table(_STEP9_TEST_PARAMS, self, font_scale=1.2)
         for widget in self._step9_test_rows.values():
             step9l.addWidget(widget[0])
+        self._step9_test_indicators = _attach_path_indicators(
+            self._step9_test_rows, {"game_exe"}
+        )
         cl.addWidget(step9g)
 
         cl.addStretch()
@@ -380,7 +414,7 @@ class BuildParamsTab(QWidget):
     # ---- 首次 / 最终打包参数填充 ----
 
     def _populate_first_build_params(self):
-        self._populate_uat_params(self._first_build_rows)
+        self._populate_uat_params(self._first_build_rows, self._first_build_indicators)
 
     def _populate_pso_collect_params(self):
         """填充 PSO 收集参数表格（exe 路径 + 复选框）"""
@@ -388,9 +422,10 @@ class BuildParamsTab(QWidget):
         ver = self._current_ue5_version
         ue = self._config.ue5_versions.get(ver) if ver else None
         rows = self._pso_collect_rows
+        indicators = self._pso_collect_indicators
 
         if not proj or not ue:
-            _clear_param_rows(rows)
+            _clear_param_rows(rows, indicators)
             return
 
         self._runner.set_project(self._current_project_index)
@@ -401,19 +436,19 @@ class BuildParamsTab(QWidget):
             "auto_coverage": True,
             "auto_quit": True,
         }
-        _fill_param_rows(rows, defaults)
+        _fill_param_rows(rows, defaults, indicators)
 
     def _populate_final_build_params(self):
-        self._populate_uat_params(self._final_build_rows)
+        self._populate_uat_params(self._final_build_rows, self._final_build_indicators)
 
-    def _populate_uat_params(self, rows: dict):
+    def _populate_uat_params(self, rows: dict, indicators: dict | None = None):
         """填充 UAT BuildCookRun 参数行"""
         proj = self._config.get_project(self._current_project_index)
         ver = self._current_ue5_version
         ue = self._config.ue5_versions.get(ver) if ver else None
 
         if not proj or not ue:
-            _clear_param_rows(rows)
+            _clear_param_rows(rows, indicators)
             return
 
         # 从 DefaultEngine.ini 读取 Shader 格式列表并动态填充下拉选项
@@ -431,7 +466,7 @@ class BuildParamsTab(QWidget):
                     shader_cmb.setCurrentIndex(idx)
                 shader_cmb.blockSignals(False)
 
-        default_sf = sf_list[0] if sf_list else "PCD3D_SM6"
+        default_sf = get_default_shader_format(proj.project_dir)
 
         defaults = {
             "project":       proj.uproject_file or "",
@@ -444,7 +479,7 @@ class BuildParamsTab(QWidget):
             "stage":         True, "pak": True, "archive": True,
             "crash_reporter": True, "utf8_output": True,
         }
-        _fill_param_rows(rows, defaults)
+        _fill_param_rows(rows, defaults, indicators)
 
     # ---- 转换缓存参数填充 ----
 
@@ -454,9 +489,10 @@ class BuildParamsTab(QWidget):
         ver = self._current_ue5_version
         ue = self._config.ue5_versions.get(ver) if ver else None
         rows = self._cache_convert_rows
+        indicators = self._cache_convert_indicators
 
         if not proj or not ue:
-            _clear_param_rows(rows)
+            _clear_param_rows(rows, indicators)
             return
 
         defaults = {
@@ -468,14 +504,15 @@ class BuildParamsTab(QWidget):
             "null_rhi":   True,
             "unattended": True,
         }
-        _fill_param_rows(rows, defaults)
+        _fill_param_rows(rows, defaults, indicators)
 
     def _populate_step9_test_params(self):
-        """填充 Step 9 测试PSO覆盖范围 参数表格"""
+        """填充 Step 10 测试PSO覆盖范围 参数表格"""
         proj = self._config.get_project(self._current_project_index)
         rows = self._step9_test_rows
+        indicators = self._step9_test_indicators
         if not proj:
-            _clear_param_rows(rows)
+            _clear_param_rows(rows, indicators)
             return
 
         self._runner.set_project(self._current_project_index)
@@ -486,7 +523,7 @@ class BuildParamsTab(QWidget):
             "logpso":             getattr(proj, 'step9_logpso', True),
             "auto_close_minutes": str(getattr(proj, 'step9_auto_close_minutes', 60)),
         }
-        _fill_param_rows(rows, defaults)
+        _fill_param_rows(rows, defaults, indicators)
 
     # ---- 独立执行按钮 ----
 
@@ -520,7 +557,8 @@ class BuildParamsTab(QWidget):
         self._start_run(_STEP_COLLECT_PSO)
 
     def _on_launch_pso_collection(self):
-        """启动 PSO 收集游戏并更新执行详情 / 日志 / 工作流"""
+        """启动 PSO 收集游戏并更新执行详情 / 日志 / 工作流
+        【详细约束3】执行完成后显示执行结果卡片"""
         proj = self._config.get_project(self._current_project_index)
         if not proj:
             return
@@ -536,24 +574,32 @@ class BuildParamsTab(QWidget):
         self._log_output.appendPlainText(f"══ {step_name} ══")
         self._log_output.appendPlainText(f"[{ts}] 正在启动…\n")
 
-        # 临时连接 runner 日志信号以捕获启动日志
-        self._runner.log_signal.connect(self._on_launch_log)
+        # 收集日志用于判断成功/失败
+        _launch_logs: list[tuple[str, str]] = []
+        def _capture_launch_log(level: str, message: str):
+            _launch_logs.append((level, message))
+            color = {"SUCCESS": "#4ECB71", "ERROR": "#E0556A", "WARNING": "#D4A843", "INFO": "#AAAAAA"}.get(level, "#CCCCCC")
+            self._log_output.appendHtml(f'<span style="color:{color}">[{datetime.now().strftime("%H:%M:%S")}] {self._html_escape(message)}</span>')
 
+        self._runner.log_signal.connect(_capture_launch_log)
         self._runner.launch_pso_collection_game()
-
-        # 断开临时信号
         try:
-            self._runner.log_signal.disconnect(self._on_launch_log)
+            self._runner.log_signal.disconnect(_capture_launch_log)
         except (TypeError, RuntimeError):
             pass
 
-    def _on_launch_log(self, level: str, message: str):
-        """捕获 launch 相关方法的日志输出到执行详情"""
-        color = {"SUCCESS": "#4ECB71", "ERROR": "#E0556A", "WARNING": "#D4A843", "INFO": "#AAAAAA"}.get(level, "#CCCCCC")
-        self._log_output.appendHtml(f'<span style="color:{color}">{message}</span>')
+        # 【详细约束3】显示执行结果卡片
+        has_error = any(level == "ERROR" for level, _msg in _launch_logs)
+        self._show_launch_result(
+            step_name=step_name,
+            is_success=not has_error,
+            logs=_launch_logs,
+            result_type="pso_collect",
+        )
 
     def _on_launch_step9_test(self):
-        """启动 Step 9 测试PSO覆盖游戏并更新执行详情"""
+        """启动 Step 10 测试PSO覆盖游戏并更新执行详情
+        【详细约束3】执行完成后显示执行结果卡片"""
         proj = self._config.get_project(self._current_project_index)
         if not proj:
             return
@@ -576,16 +622,28 @@ class BuildParamsTab(QWidget):
         self._log_output.appendPlainText(f"══ {step_name} ══")
         self._log_output.appendPlainText(f"[{ts}] 正在启动…\n")
 
-        # 临时连接 runner 日志信号以捕获启动日志
-        self._runner.log_signal.connect(self._on_launch_log)
+        # 收集日志用于判断成功/失败
+        _launch_logs: list[tuple[str, str]] = []
+        def _capture_launch_log(level: str, message: str):
+            _launch_logs.append((level, message))
+            color = {"SUCCESS": "#4ECB71", "ERROR": "#E0556A", "WARNING": "#D4A843", "INFO": "#AAAAAA"}.get(level, "#CCCCCC")
+            self._log_output.appendHtml(f'<span style="color:{color}">[{datetime.now().strftime("%H:%M:%S")}] {self._html_escape(message)}</span>')
 
+        self._runner.log_signal.connect(_capture_launch_log)
         self._runner.launch_step9_game()
-
-        # 断开临时信号
         try:
-            self._runner.log_signal.disconnect(self._on_launch_log)
+            self._runner.log_signal.disconnect(_capture_launch_log)
         except (TypeError, RuntimeError):
             pass
+
+        # 【详细约束3】显示执行结果卡片
+        has_error = any(level == "ERROR" for level, _msg in _launch_logs)
+        self._show_launch_result(
+            step_name=step_name,
+            is_success=not has_error,
+            logs=_launch_logs,
+            result_type="step9_test",
+        )
 
     def _on_run_cache_convert(self):
         self._start_run(_STEP_CACHE_CONVERT)
@@ -856,4 +914,55 @@ class BuildParamsTab(QWidget):
     def _append_detail(self, text: str, color: str = "#CCCCCC"):
         """向执行详情窗口追加一条 HTML 条目"""
         self._log_output.appendHtml(f'<span style="color:{color}">{text}</span>')
+
+    def _show_launch_result(self, step_name: str, is_success: bool, logs: list[tuple[str, str]], result_type: str):
+        """【详细约束3】显示启动类操作（PSO收集/Step9测试）的执行结果卡片"""
+        status_color = "#4ECB71" if is_success else "#E0556A"
+        status_icon = "✓" if is_success else "✗"
+
+        self._result_header.setText(
+            f'<span style="color:{status_color}; font-size:16px;">{status_icon}</span>'
+            f'&nbsp;&nbsp;<span style="color:#E0E0E0;">{step_name} — '
+            f'{"游戏已启动" if is_success else "启动失败"}</span>'
+        )
+
+        body_parts: list[str] = []
+        if is_success:
+            body_parts.append(
+                f'<span style="color:#4ECB71;">●</span> '
+                f'<span style="color:#CCCCCC;">游戏进程已成功启动</span>'
+            )
+            # 提取 SUCCESS 级别日志摘要
+            for level, msg in logs:
+                if level == "SUCCESS":
+                    body_parts.append(
+                        f'<span style="color:#4ECB71;">●</span> '
+                        f'<span style="color:#CCCCCC;">{self._html_escape(msg)}</span>'
+                    )
+        else:
+            body_parts.append(
+                f'<span style="color:#E0556A;">●</span> '
+                f'<span style="color:#CCCCCC;">请检查：打包程序是否存在、参数配置是否正确</span>'
+            )
+            # 提取 ERROR / WARNING 日志摘要
+            for level, msg in logs:
+                if level in ("ERROR", "WARNING"):
+                    body_parts.append(
+                        f'<span style="color:#E0556A;">●</span> '
+                        f'<span style="color:#CCCCCC;">{self._html_escape(msg)}</span>'
+                    )
+
+        self._result_body.setText("<br>".join(body_parts))
+
+        # 启动类操作使用与 build 相同的操作按钮（运行游戏 / 关闭游戏 / 打开目录）
+        self._last_step_type = "build"
+        self._btn_launch_game.setVisible(True)
+        self._btn_close_game.setVisible(True)
+        self._btn_open_dir.setVisible(True)
+        self._btn_open_rec_dir.setVisible(False)
+        self._btn_open_shk_dir.setVisible(False)
+        self._btn_open_spc_dir.setVisible(False)
+        self._result_actions.setVisible(True)
+
+        self._result_card.setVisible(True)
 

@@ -137,15 +137,41 @@ def read_shader_formats_from_ini(project_dir: str | None) -> str:
         formats.add(m.group(1).strip())
     if not formats:
         return "PCD3D_SM6"
-    return "+".join(sorted(formats))
+    return "+".join(sorted(formats, key=_shader_format_priority_sort_key))
+
+
+def _shader_format_priority_sort_key(fmt: str) -> tuple:
+    """Shader 格式排序键：SM6 最先，SM5 其次，其余按字母序。
+
+    用于 read_shader_formats_list_from_ini 等函数的排序，
+    确保 UI 下拉列表按 用户预期的优先级 排列。
+    """
+    upper = fmt.upper()
+    if "SM6" in upper:
+        return (0, fmt)
+    if "SM5" in upper:
+        return (1, fmt)
+    return (2, fmt)
+
+
+def get_default_shader_format(project_dir: str | None) -> str:
+    """获取推荐的默认 Shader 格式：SM6 > SM5 > 列表首项 > PCD3D_SM6
+
+    供 UI 参数填充时作为 ShaderFormat 下拉框的默认选中值。
+    """
+    sf_list = read_shader_formats_list_from_ini(project_dir)
+    if not sf_list:
+        return "PCD3D_SM6"
+    return sf_list[0]  # 列表已按优先级排序，首项即推荐
 
 
 def read_shader_formats_list_from_ini(project_dir: str | None) -> list[str]:
     """从 DefaultEngine.ini 解析 Shader 格式，返回实际生效的格式列表
 
     仅解析 + 前缀的行（添加项），- 前缀的行（删除项）不纳入。
+    排序规则：SM6 优先 → SM5 优先 → 其余按字母序。
 
-    示例：["PCD3D_SM5", "PCD3D_SM6"]
+    示例：["PCD3D_SM6", "PCD3D_SM5"]
     """
     if not project_dir:
         return ["PCD3D_SM6"]
@@ -170,7 +196,7 @@ def read_shader_formats_list_from_ini(project_dir: str | None) -> list[str]:
         formats.add(m.group(1).strip())
     if not formats:
         return ["PCD3D_SM6"]
-    return sorted(formats)
+    return sorted(formats, key=_shader_format_priority_sort_key)
 
 
 # ---- ConfigManager ----

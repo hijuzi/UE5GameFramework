@@ -3,6 +3,7 @@
 #include "PSOCacheManager.h"
 #include "PSOCacheMonitorWidget.h"
 #include "PSOCacheSettings.h"
+#include "PSOCacheAssetList.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Blueprint/UserWidget.h"
@@ -175,6 +176,21 @@ void UPSOCacheManager::LoadBuiltInPSOCache()
 
 TArray<TSoftObjectPtr<UMaterial>> UPSOCacheManager::GetAllMaterials()
 {
+	const UPSOCacheSettings* Settings = GetDefault<UPSOCacheSettings>();
+
+	// 优先从预收集的 PSOCacheAssetList DataAsset 读取（打包后不依赖 AssetRegistry 运行时扫描）
+	if (Settings && Settings->PSOCacheAssetList.IsValid())
+	{
+		UPSOCacheAssetList* AssetList = Settings->PSOCacheAssetList.LoadSynchronous();
+		if (AssetList && AssetList->Materials.Num() > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("UPSOCacheManager::GetAllMaterials - %d materials loaded from PSOCacheAssetList"),
+				AssetList->Materials.Num());
+			return AssetList->Materials;
+		}
+	}
+
+	// 回退：运行时 AssetRegistry 扫描
 	TArray<TSoftObjectPtr<UMaterial>> Materials;
 
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
@@ -188,11 +204,28 @@ TArray<TSoftObjectPtr<UMaterial>> UPSOCacheManager::GetAllMaterials()
 		Materials.Add(TSoftObjectPtr<UMaterial>(AssetData.GetSoftObjectPath()));
 	}
 
+	UE_LOG(LogTemp, Log, TEXT("UPSOCacheManager::GetAllMaterials - %d materials loaded via runtime AssetRegistry scan"),
+		Materials.Num());
 	return Materials;
 }
 
 TArray<TSoftObjectPtr<UNiagaraSystem>> UPSOCacheManager::GetAllNiagaraParticleSystems()
 {
+	const UPSOCacheSettings* Settings = GetDefault<UPSOCacheSettings>();
+
+	// 优先从预收集的 PSOCacheAssetList DataAsset 读取（打包后不依赖 AssetRegistry 运行时扫描）
+	if (Settings && Settings->PSOCacheAssetList.IsValid())
+	{
+		UPSOCacheAssetList* AssetList = Settings->PSOCacheAssetList.LoadSynchronous();
+		if (AssetList && AssetList->NiagaraSystems.Num() > 0)
+		{
+			UE_LOG(LogTemp, Log, TEXT("UPSOCacheManager::GetAllNiagaraParticleSystems - %d systems loaded from PSOCacheAssetList"),
+				AssetList->NiagaraSystems.Num());
+			return AssetList->NiagaraSystems;
+		}
+	}
+
+	// 回退：运行时 AssetRegistry 扫描
 	TArray<TSoftObjectPtr<UNiagaraSystem>> NiagaraSystems;
 
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
@@ -206,6 +239,8 @@ TArray<TSoftObjectPtr<UNiagaraSystem>> UPSOCacheManager::GetAllNiagaraParticleSy
 		NiagaraSystems.Add(TSoftObjectPtr<UNiagaraSystem>(AssetData.GetSoftObjectPath()));
 	}
 
+	UE_LOG(LogTemp, Log, TEXT("UPSOCacheManager::GetAllNiagaraParticleSystems - %d systems loaded via runtime AssetRegistry scan"),
+		NiagaraSystems.Num());
 	return NiagaraSystems;
 }
 
@@ -413,15 +448,18 @@ bool UPSOCacheManager::TickCoverage(float DeltaTime)
 void UPSOCacheManager::BeginMaterialCoverageStrategy()
 {
 	CurrentMaterialIndex = 0;
-	CachedMaterials = GetAllMaterials();
 
 	const UPSOCacheSettings* Settings = GetDefault<UPSOCacheSettings>();
-	if (Settings)
+	if (!Settings)
 	{
-		const FPSOMaterialCoverageConfig& MatCfg = Settings->MaterialCoverageConfig;
-		MaterialPoolCellSize = MatCfg.MaterialGridCellSize;
-		MaterialActorPool.SetNum(MatCfg.MaterialActorPoolSize);
+		return;
 	}
+
+	CachedMaterials = GetAllMaterials();
+
+	const FPSOMaterialCoverageConfig& MatCfg = Settings->MaterialCoverageConfig;
+	MaterialPoolCellSize = MatCfg.MaterialGridCellSize;
+	MaterialActorPool.SetNum(MatCfg.MaterialActorPoolSize);
 
 	UE_LOG(LogTemp, Log, TEXT("UPSOCacheManager::BeginMaterialCoverageStrategy - %d materials to process (pool capacity=%d)"),
 		CachedMaterials.Num(), MaterialActorPool.Num());
@@ -430,16 +468,19 @@ void UPSOCacheManager::BeginMaterialCoverageStrategy()
 void UPSOCacheManager::BeginNiagaraCoverageStrategy()
 {
 	CurrentNiagaraIndex = 0;
-	CachedNiagaraSystems = GetAllNiagaraParticleSystems();
 
 	const UPSOCacheSettings* Settings = GetDefault<UPSOCacheSettings>();
-	if (Settings)
+	if (!Settings)
 	{
-		const FPSONiagaraCoverageConfig& NiagaraCfg = Settings->NiagaraCoverageConfig;
-		NiagaraPoolCellSize = NiagaraCfg.NiagaraGridCellSize;
-		NiagaraActorPool.SetNum(NiagaraCfg.NiagaraActorPoolSize);
-		NiagaraCompPool.SetNum(NiagaraCfg.NiagaraActorPoolSize);
+		return;
 	}
+
+	CachedNiagaraSystems = GetAllNiagaraParticleSystems();
+
+	const FPSONiagaraCoverageConfig& NiagaraCfg = Settings->NiagaraCoverageConfig;
+	NiagaraPoolCellSize = NiagaraCfg.NiagaraGridCellSize;
+	NiagaraActorPool.SetNum(NiagaraCfg.NiagaraActorPoolSize);
+	NiagaraCompPool.SetNum(NiagaraCfg.NiagaraActorPoolSize);
 
 	UE_LOG(LogTemp, Log, TEXT("UPSOCacheManager::BeginNiagaraCoverageStrategy - %d systems to process (pool capacity=%d)"),
 		CachedNiagaraSystems.Num(), NiagaraActorPool.Num());

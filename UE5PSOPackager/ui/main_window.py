@@ -14,6 +14,7 @@ from step_runner import StepRunner
 from step_definitions import StepStatus
 from ui.config_tab import ConfigTab
 from ui.build_params_tab import BuildParamsTab
+from ui.ci_process_tab import CIProcessTab
 from ui.workflow_tab import WorkflowTab
 from ui.log_widget import LogWidget
 from ui.log_issue_widget import LogIssueWidget
@@ -99,6 +100,10 @@ class MainWindow(QMainWindow):
         self._build_params_tab = BuildParamsTab(self._config, self._runner)
         self._tab_widget.addTab(self._build_params_tab, "参数管理")
 
+        self._ci_process_tab = CIProcessTab(self._config)
+        self._ci_process_tab.log_signal.connect(self._on_log)  # CI 执行日志 → 日志输出 tab
+        self._tab_widget.addTab(self._ci_process_tab, "CI流程配置")
+
         self._workflow_tab = WorkflowTab(self._runner)
         self._workflow_tab.log_signal.connect(self._on_log)
         self._workflow_tab.step_status_signal.connect(self._on_step_status)
@@ -122,6 +127,7 @@ class MainWindow(QMainWindow):
             proj = self._config.get_project(self._current_project_index)
             ue_ver = proj.ue5_version if proj else ""
             self._build_params_tab.refresh(self._current_project_index, ue_ver)
+            self._ci_process_tab.refresh(self._current_project_index, ue_ver)
 
         # 启动时输出已加载配置摘要到日志
         self._log_loaded_config()
@@ -157,10 +163,12 @@ class MainWindow(QMainWindow):
         proj = self._config.get_project(index)
         ue_ver = proj.ue5_version if proj else ""
         self._build_params_tab.refresh(index, ue_ver)
+        self._ci_process_tab.refresh(index, ue_ver)
 
     def _on_build_params_selection_changed(self, proj_index: int, ue_ver: str):
         """配置管理页面切换 UE 版本或项目时同步刷新打包参数"""
         self._build_params_tab.refresh(proj_index, ue_ver)
+        self._ci_process_tab.refresh(proj_index, ue_ver)
         # 同步顶部「当前项目」下拉框
         if proj_index >= 0 and proj_index != self._current_project_index:
             self._current_project_index = proj_index
@@ -175,8 +183,8 @@ class MainWindow(QMainWindow):
     def _on_log(self, level: str, message: str):
         self._log_widget.append_log(level, message)
 
-        # 分流到日志归档面板（打包/PSO收集相关步骤 2/3/6/8）
-        if self._current_running_step in (2, 3, 6, 8):
+        # 分流到日志归档面板（打包/PSO收集相关步骤 3/4/7/9）
+        if self._current_running_step in (3, 4, 7, 9):
             self._log_issue_widget.append_phase_log(self._current_running_step, level, message)
 
     def _on_command(self, step_index: int, cmd: str):

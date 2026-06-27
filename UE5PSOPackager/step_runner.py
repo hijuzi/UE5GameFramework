@@ -53,15 +53,16 @@ class StepRunner(QObject):
     step_status_signal = Signal(int, int)       # (step_index, status) 步骤状态变更
     step_result_signal = Signal(int, str)       # (step_index, result_text) 步骤结果摘要
     step_progress_signal = Signal(int, int)     # (step_index, percentage) 步骤进度
-    need_user_input = Signal(str)               # (message) 需要用户交互（Step 3 提示信息）
-    step3_auto_mode_signal = Signal(bool)       # (active) Step 3 进入/退出自动监听模式
-    step3_exe_found_signal = Signal(str)        # (exe_path) Step 3 找到的打包程序路径
+    need_user_input = Signal(str)               # (message) 需要用户交互（Step 4 提示信息）
+    step3_auto_mode_signal = Signal(bool)       # (active) Step 4 进入/退出自动监听模式
+    step3_exe_found_signal = Signal(str)        # (exe_path) Step 4 找到的打包程序路径
     step3_game_running_signal = Signal(bool)    # (running) 游戏进程运行状态变化
-    step9_panel_signal = Signal(bool)           # (active) Step 9 进入/退出面板
-    step9_game_running_signal = Signal(bool)    # (running) Step 9 游戏进程运行状态
+    step9_panel_signal = Signal(bool)           # (active) Step 10 进入/退出面板
+    step9_game_running_signal = Signal(bool)    # (running) Step 10 游戏进程运行状态
     pso_coverage_data = Signal(dict)            # (data) PSO 覆盖范围结果数据
     ask_close_editor = Signal(str)               # (message) 请求关闭编辑器
     ask_ini_fix = Signal(str, list)             # (summary, missing_configs) Step1 配置缺失，询问是否写入
+    ask_skip_ci = Signal()                      # 全部执行时询问是否跳过CI流程（10秒倒计时，超时不跳过）
     all_done_signal = Signal()                  # 全部步骤完成
     command_signal = Signal(int, str)           # (step_index, command_text) 阶段完整指令输出
 
@@ -85,6 +86,8 @@ class StepRunner(QObject):
         self._editor_close_event: Optional[threading.Event] = None
         self._ini_fix_response: Optional[bool] = None          # INI 修复对话框响应
         self._ini_fix_event: Optional[threading.Event] = None
+        self._skip_ci_response: Optional[bool] = None          # CI 跳过弹窗响应
+        self._skip_ci_event: Optional[threading.Event] = None
 
     # ---- 公共接口 ----
 
@@ -233,7 +236,7 @@ class StepRunner(QObject):
                 self._log("ERROR", f"无法启动游戏: {e}")
 
     def close_step9_game(self):
-        """由 UI 触发：请求关闭 Step 9 游戏进程（避免阻塞 UI）"""
+        """由 UI 触发：请求关闭 Step 10 游戏进程（避免阻塞 UI）"""
         self._step9_request_close = True
 
     def _get_expected_exe_path(self) -> str:
@@ -421,6 +424,12 @@ class StepRunner(QObject):
         self._ini_fix_response = should_fix
         if self._ini_fix_event:
             self._ini_fix_event.set()
+
+    def on_skip_ci_response(self, skip: bool):
+        """UI 回调：用户选择是否跳过 CI 流程"""
+        self._skip_ci_response = skip
+        if self._skip_ci_event:
+            self._skip_ci_event.set()
 
     def _write_ini_config(self, fix_items: list[dict]) -> bool:
         """将缺失/不正确的 PSO 配置写入 INI 文件，返回是否全部成功
@@ -744,14 +753,31 @@ class StepRunner(QObject):
     # ---- 步骤入口 ----
 
     def run_all(self):
-        """顺序执行所有步骤（Step 0 ~ Step 9）"""
+        """顺序执行所有步骤（Step 0 ~ Step 10）"""
         self._stop_requested = False
-        for step_index in range(10):
+        for step_index in range(11):
             if self._stop_requested:
                 self._log("WARNING", "用户中止执行")
                 break
+
+            # Step 2: 全部执行时弹窗询问是否跳过 CI 流程（10 秒倒计时）
+            if step_index == 2:
+                self.ask_skip_ci.emit()
+                self._skip_ci_event = threading.Event()
+                self._skip_ci_response = None
+                if not self._skip_ci_event.wait(15):
+                    self._log("INFO", "CI 跳过确认超时，将执行全部 CI 流程")
+                self._skip_ci_event = None
+                if self._skip_ci_response:
+                    self._log("INFO", "用户选择跳过 CI 流程，直接进入 Step 3")
+                    self.step_status_signal.emit(2, StepStatus.SKIPPED.value)
+                    continue
+
             ok = self.run_step(step_index)
-            if not ok:
+            # Step 2 (CI流程) 失败不影响后续步骤继续执行
+            if not ok and step_index == 2:
+                self._log("WARNING", "CI 流程部分失败，继续执行后续步骤")
+            elif not ok:
                 self._log("ERROR", f"步骤 {step_index} 失败，停止后续步骤")
                 break
         self.all_done_signal.emit()
@@ -774,8 +800,8 @@ class StepRunner(QObject):
             self._log("ERROR", "未选择项目")
             return False
 
-        # 依赖 UE 引擎的步骤（Step 2/6/8）需要提前校验 UE 配置
-        _UE_DEPENDENT_STEPS = {2, 6, 8}
+        # 依赖 UE 引擎的步骤（Step 3/7/9）需要提前校验 UE 配置
+        _UE_DEPENDENT_STEPS = {3, 7, 9}
         if step_index in _UE_DEPENDENT_STEPS and self._ue5 is None:
             self._log("ERROR",
                 f"项目「{self._project.name}」关联的 UE 版本「{self._project.ue5_version}」"
@@ -784,10 +810,10 @@ class StepRunner(QObject):
             return False
 
         step_names = [
-            "Step0_validate_config", "Step1_check_ini", "Step2_first_build",
-            "Step3_collect_pso", "Step4_confirm_shk", "Step5_gather_files",
-            "Step6_expand_spc", "Step7_integrate_spc", "Step8_final_build",
-            "Step9_test_pso_coverage",
+            "Step0_validate_config", "Step1_check_ini", "Step2_run_all_ci",
+            "Step3_first_build", "Step4_collect_pso", "Step5_confirm_shk",
+            "Step6_gather_files", "Step7_expand_spc", "Step8_integrate_spc",
+            "Step9_final_build", "Step10_test_pso_coverage",
         ]
 
         if 0 <= step_index < len(step_names):
@@ -925,14 +951,15 @@ class StepRunner(QObject):
         summaries = {
             0: f"{status_str} — 配置验证{'通过' if ok else '未通过'}  ({elapsed_str})",
             1: f"{status_str} — PSO INI 配置检查{'全部就绪' if ok else '存在问题'}  ({elapsed_str})",
-            2: f"{status_str} — 首次打包{'完成' if ok else '失败'}  ({elapsed_str})",
-            3: f"{status_str} — PSO 记录{'已收集' if ok else '收集中断'}  ({elapsed_str})",
-            4: f"{status_str} — .shk 文件{'可用' if ok else '未找到'}  ({elapsed_str})",
-            5: f"{status_str} — 缓存文件{'汇聚完成' if ok else '汇聚失败'}  ({elapsed_str})",
-            6: f"{status_str} — .spc 转换{'完成' if ok else '失败'}  ({elapsed_str})",
-            7: f"{status_str} — .spc 集成到 Build 目录  ({elapsed_str})",
-            8: f"{status_str} — 最终打包{'完成' if ok else '失败'}  ({elapsed_str})",
-            9: f"{status_str} — PSO 覆盖测试{'完成' if ok else '失败'}  ({elapsed_str})",
+            2: f"{status_str} — 全部CI流程{'执行完成' if ok else '未全部通过'}  ({elapsed_str})",
+            3: f"{status_str} — 首次打包{'完成' if ok else '失败'}  ({elapsed_str})",
+            4: f"{status_str} — PSO 记录{'已收集' if ok else '收集中断'}  ({elapsed_str})",
+            5: f"{status_str} — .shk 文件{'可用' if ok else '未找到'}  ({elapsed_str})",
+            6: f"{status_str} — 缓存文件{'汇聚完成' if ok else '汇聚失败'}  ({elapsed_str})",
+            7: f"{status_str} — .spc 转换{'完成' if ok else '失败'}  ({elapsed_str})",
+            8: f"{status_str} — .spc 集成到 Build 目录  ({elapsed_str})",
+            9: f"{status_str} — 最终打包{'完成' if ok else '失败'}  ({elapsed_str})",
+            10: f"{status_str} — PSO 覆盖测试{'完成' if ok else '失败'}  ({elapsed_str})",
         }
 
         summary = summaries.get(step_index, f"步骤 {step_index} {status_str}  ({elapsed_str})")
@@ -1210,11 +1237,169 @@ class StepRunner(QObject):
             self._log("SUCCESS", "重新验证通过，所有必需配置项已就位")
         return all_ok
 
-    # ---- Step 2: 首次打包（生成 .shk） ----
+    # ---- Step 2: 执行全部CI流程 ----
 
-    def Step2_first_build(self) -> bool:
+    # CI 子步骤定义（可扩展）
+    _CI_STEPS = [
+        {
+            "name": "PSOCache刷新资产",
+            "commandlet": "RefreshPSOCacheAssetList",
+            "package_path": "/PSOCacheSystem/DA/DA_PSOCacheAssetList",
+        },
+    ]
+
+    def Step2_run_all_ci(self) -> bool:
+        """Step 2: 执行全部CI流程 — 依次运行所有 CI 配置项"""
         self._log("INFO", "=" * 50)
-        self._log("INFO", "Step 2: 首次打包 — 生成 Shader 稳定键 (.shk)")
+        self._log("INFO", "Step 2: 执行全部CI流程")
+        self._log("INFO", "=" * 50)
+
+        if not self._project or not self._ue5:
+            self._log("ERROR", "缺少项目或UE引擎配置，无法执行CI流程")
+            return False
+
+        editor_cmd = self._ue5.editor_cmd_path
+        if not editor_cmd:
+            self._log("ERROR", "未配置 UE Editor-Cmd 路径，无法执行 Commandlet")
+            return False
+
+        uproject = self._project.uproject_file
+        if not uproject:
+            self._log("ERROR", "未找到 .uproject 文件路径")
+            return False
+
+        self._add_step_detail(f"项目: {self._project.name}")
+        self._add_step_detail(f"UE Editor-Cmd: {editor_cmd}")
+
+        # 编辑器运行检测（Commandlet 无法与编辑器同时操作同一项目）
+        editor_name = self._is_editor_running()
+        if editor_name:
+            self._log("WARNING", f"检测到 {editor_name} 正在运行，需要关闭后才能执行 Commandlet")
+            self.ask_close_editor.emit(
+                f"检测到 {editor_name} 正在运行，Commandlet 无法同时操作同一项目。\n\n"
+                "是否关闭编辑器并继续执行？"
+            )
+            # 等待用户响应
+            self._editor_close_event = threading.Event()
+            self._editor_close_response = None
+            if not self._editor_close_event.wait(30):
+                self._log("WARNING", "等待用户确认超时，跳过编辑器关闭")
+            self._editor_close_event = None
+            if self._editor_close_response:
+                # 关闭编辑器及其 Cmd 变体
+                for name in ("UnrealEditor.exe", "UnrealEditor-Cmd.exe"):
+                    self._kill_editor(name)
+                self._log("SUCCESS", "UnrealEditor 已关闭")
+                self._add_step_detail("✓ UnrealEditor 已自动关闭")
+            else:
+                self._log("WARNING", "用户取消关闭编辑器，CI流程中止")
+                return False
+
+        # 依次执行每个 CI 子步骤
+        all_passed = True
+        ci_start_time = time.time()
+        sub_results: list[dict] = []
+
+        for ci_step in self._CI_STEPS:
+            name = ci_step["name"]
+            self._log("INFO", f"--- [CI] {name} 开始 ---")
+            sub_start = time.time()
+
+            try:
+                ok = self._run_ci_commandlet(ci_step, editor_cmd, uproject)
+                sub_elapsed = time.time() - sub_start
+                elapsed_str = self._format_elapsed(sub_elapsed)
+
+                if ok:
+                    self._log("SUCCESS", f"[CI] {name} 完成 ({elapsed_str})")
+                    self._add_step_detail(f"✓ {name} — 完成 ({elapsed_str})")
+                else:
+                    self._log("ERROR", f"[CI] {name} 失败 ({elapsed_str})")
+                    self._add_step_detail(f"✗ {name} — 失败 ({elapsed_str})")
+                    all_passed = False
+                    # 不中断：CI 子步骤失败不影响后续子步骤
+
+                sub_results.append({"name": name, "ok": ok, "elapsed": elapsed_str})
+
+            except Exception as e:
+                sub_elapsed = time.time() - sub_start
+                elapsed_str = self._format_elapsed(sub_elapsed)
+                self._log("ERROR", f"[CI] {name} 异常: {e}")
+                self._add_step_detail(f"✗ {name} — 异常 ({elapsed_str}): {e}")
+                all_passed = False
+                # 不中断：CI 子步骤失败不影响后续子步骤
+                sub_results.append({"name": name, "ok": False, "elapsed": elapsed_str})
+
+        total_elapsed = time.time() - ci_start_time
+        total_str = self._format_elapsed(total_elapsed)
+
+        if all_passed:
+            self._log("SUCCESS", f"══ 全部CI流程执行完成 (总耗时: {total_str}) ══")
+            self._add_step_detail(f"✓ 全部 {len(sub_results)} 项CI流程通过 (总耗时: {total_str})")
+        else:
+            self._log("ERROR", f"══ CI流程未全部通过 (总耗时: {total_str}) ══")
+            self._add_step_detail(f"✗ CI流程未全部通过 (总耗时: {total_str})")
+
+        return all_passed
+
+    def _run_ci_commandlet(self, ci_step: dict, editor_cmd: str, uproject: str) -> bool:
+        """执行单个 CI Commandlet，返回是否成功"""
+        commandlet = ci_step["commandlet"]
+        package_path = ci_step.get("package_path", "")
+
+        # 构建 Commandlet 命令
+        flags = ["-NullRHI", "-unattended"]
+        cmd = (
+            f'"{editor_cmd}"'
+            f' "{uproject}"'
+            f' -run={commandlet}'
+        )
+        if package_path:
+            cmd += f' -PackagePath="{package_path}"'
+        cmd += ' ' + ' '.join(flags)
+
+        self._log("INFO", f">> {cmd}")
+        self.command_signal.emit(2, cmd)
+
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            )
+
+            rc = None
+            for line in proc.stdout:
+                line = line.rstrip("\n\r")
+                if not line:
+                    continue
+                lo = line.lower()
+                if "error" in lo or "fail" in lo:
+                    self._log("ERROR", f"  {line}")
+                elif "warn" in lo:
+                    self._log("WARNING", f"  {line}")
+                elif "success" in lo or "完成" in line:
+                    self._log("SUCCESS", f"  {line}")
+                else:
+                    self._log("INFO", f"  {line}")
+
+            proc.wait()
+            rc = proc.returncode
+            return rc == 0
+
+        except Exception as e:
+            self._log("ERROR", f"Commandlet 执行异常: {e}")
+            return False
+
+    # ---- Step 3: 首次打包（生成 .shk） ----
+
+    def Step3_first_build(self) -> bool:
+        self._log("INFO", "=" * 50)
+        self._log("INFO", "Step 3: 首次打包 — 生成 Shader 稳定键 (.shk)")
         self._log("INFO", "=" * 50)
 
         if self._project:
@@ -1268,11 +1453,11 @@ class StepRunner(QObject):
 
         return self._run_uat_build("Step 2 首次打包", step_index=2)
 
-    # ---- Step 3: 收集 PSO 记录（自动监听） ----
+    # ---- Step 4: 收集 PSO 记录（自动监听） ----
 
-    def Step3_collect_pso(self) -> bool:
+    def Step4_collect_pso(self) -> bool:
         self._log("INFO", "=" * 50)
-        self._log("INFO", "Step 3: 收集 PSO 运行时记录（自动监听模式）")
+        self._log("INFO", "Step 4: 收集 PSO 运行时记录（自动监听模式）")
         self._log("INFO", "=" * 50)
 
         proj = self._project
@@ -1520,11 +1705,11 @@ class StepRunner(QObject):
             self._log("WARNING", f"  PSO 记录目录不存在: {rec_dir}")
             self._add_step_detail(f"目录不存在: {rec_dir}")
 
-    # ---- Step 4: 确认 .shk 文件可用 ----
+    # ---- Step 5: 确认 .shk 文件可用 ----
 
-    def Step4_confirm_shk(self) -> bool:
+    def Step5_confirm_shk(self) -> bool:
         self._log("INFO", "=" * 50)
-        self._log("INFO", "Step 4: 确认 .shk 稳定键文件可用")
+        self._log("INFO", "Step 5: 确认 .shk 稳定键文件可用")
         self._log("INFO", "=" * 50)
 
         if not self._project:
@@ -1573,11 +1758,11 @@ class StepRunner(QObject):
 
         return len(shk_files) > 0
 
-    # ---- Step 5: 汇聚缓存文件 ----
+    # ---- Step 6: 汇聚缓存文件 ----
 
-    def Step5_gather_files(self) -> bool:
+    def Step6_gather_files(self) -> bool:
         self._log("INFO", "=" * 50)
-        self._log("INFO", "Step 5: 汇聚 .rec + .shk 到 PSO 缓存工作目录")
+        self._log("INFO", "Step 6: 汇聚 .rec + .shk 到 PSO 缓存工作目录")
         self._log("INFO", "=" * 50)
 
         if not self._project:
@@ -1625,11 +1810,11 @@ class StepRunner(QObject):
         self._log("SUCCESS", f"汇聚完成：{shk_copied} 个 .shk + {rec_copied} 个 .rec")
         return True
 
-    # ---- Step 6: 转换缓存（expand → .spc） ----
+    # ---- Step 7: 转换缓存（expand → .spc） ----
 
-    def Step6_expand_spc(self) -> bool:
+    def Step7_expand_spc(self) -> bool:
         self._log("INFO", "=" * 50)
-        self._log("INFO", "Step 6: 转换缓存 — ShaderPipelineCacheTools expand (.spc)")
+        self._log("INFO", "Step 7: 转换缓存 — ShaderPipelineCacheTools expand (.spc)")
         self._log("INFO", "=" * 50)
 
         if not self._project:
@@ -1715,11 +1900,11 @@ class StepRunner(QObject):
 
         return ok
 
-    # ---- Step 7: 集成 .spc 到 Build 目录 ----
+    # ---- Step 8: 集成 .spc 到 Build 目录 ----
 
-    def Step7_integrate_spc(self) -> bool:
+    def Step8_integrate_spc(self) -> bool:
         self._log("INFO", "=" * 50)
-        self._log("INFO", "Step 7: 集成 .spc 到 Build/Windows/PipelineCaches/")
+        self._log("INFO", "Step 8: 集成 .spc 到 Build/Windows/PipelineCaches/")
         self._log("INFO", "=" * 50)
 
         if not self._project:
@@ -1747,11 +1932,11 @@ class StepRunner(QObject):
 
         return True
 
-    # ---- Step 8: 最终打包 ----
+    # ---- Step 9: 最终打包 ----
 
-    def Step8_final_build(self) -> bool:
+    def Step9_final_build(self) -> bool:
         self._log("INFO", "=" * 50)
-        self._log("INFO", "Step 8: 最终打包 — PSO 缓存入包")
+        self._log("INFO", "Step 9: 最终打包 — PSO 缓存入包")
         self._log("INFO", "=" * 50)
 
         if self._project:
@@ -1762,11 +1947,11 @@ class StepRunner(QObject):
 
         return self._run_uat_build("Step 8 最终打包", step_index=8)
 
-    # ---- Step 9: 测试 PSO 覆盖范围 ----
+    # ---- Step 10: 测试 PSO 覆盖范围 ----
 
-    def Step9_test_pso_coverage(self) -> bool:
+    def Step10_test_pso_coverage(self) -> bool:
         self._log("INFO", "=" * 50)
-        self._log("INFO", "Step 9: 测试 PSO 覆盖范围 — 运行打包程序并分析日志")
+        self._log("INFO", "Step 10: 测试 PSO 覆盖范围 — 运行打包程序并分析日志")
         self._log("INFO", "=" * 50)
 
         if not self._project:

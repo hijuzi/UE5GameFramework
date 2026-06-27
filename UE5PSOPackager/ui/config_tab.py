@@ -1,6 +1,19 @@
 """
 ConfigTab - 配置管理标签页
 UE 版本管理 + 项目配置管理，支持多 UE 版本和多项目切换
+
+===== 设计约束 =====
+本模块提供了一组公共 UI 构建函数（_create_param_table / _fill_param_rows / _clear_param_rows /
+_attach_path_indicators 等），被 参数管理（build_params_tab.py）和 CI流程配置（ci_process_tab.py）
+两个标签页共用。
+【主要约束】这两个标签页在功能上和设计排版上保持基本一致。
+【详细约束1】所有涉及路径的参数行，必须通过 _attach_path_indicators 挂载路径有效性指示器（✅/❌），
+            并在填充/清空参数时自动刷新（由 _fill_param_rows / _clear_param_rows 内聚处理）。
+【详细约束2】CI流程配置中，任何执行操作（如点击"PSOCache刷新资产"）必须先检查编辑器是否打开。
+            若打开 → 弹窗询问"是否关闭编辑器后继续"，用户确认后关闭编辑器再执行，用户取消则退出。
+【详细约束3】参数管理与CI流程配置中，任何执行操作均需向日志输出区输出信息：
+            - 执行详情（_log_output）：显示执行过程的主要信息（启动、进度、中间日志）
+            - 执行结果（_result_card / _result_body）：执行完成后显示最终汇总结果（成功/失败/耗时/关键统计）
 """
 import json
 import os
@@ -31,7 +44,7 @@ from step_runner import PSO_REQUIRED_CONFIGS
 
 # ---- 命令行参数行定义 ----
 ParamRow = namedtuple("ParamRow", ["desc", "flag", "value_key", "widget_type", "choices"])
-# widget_type: "path_file", "path_dir", "text", "check", "readonly", "combo"
+# widget_type: "path_file", "path_dir", "text", "check", "readonly", "readonly_text", "combo"
 # choices: 仅 combo 有效，列表 [(显示文本, 值), ...]
 
 _FIRST_FINAL_PARAMS = [
@@ -57,7 +70,7 @@ _FIRST_FINAL_PARAMS = [
 
 _CACHE_CONVERT_PARAMS = [
     ParamRow("项目路径", "-project", "project", "readonly", None),
-    ParamRow("运行命令", "-run=", "run_cmd", "readonly", None),
+    ParamRow("运行命令", "-run=", "run_cmd", "readonly_text", None),
     ParamRow("REC源文件", "", "rec_source", "readonly", None),
     ParamRow("SHK源文件", "", "shk_source", "readonly", None),
     ParamRow("目标SPC", "", "spc_target", "readonly", None),
@@ -1016,7 +1029,7 @@ def _create_param_table(param_defs: list, parent: QWidget, font_scale: float = 1
         # 值输入框
         le_fs = _px(11)
         le_mh = _px(22)
-        if pd.widget_type == "readonly":
+        if pd.widget_type in ("readonly", "readonly_text"):
             le = QLineEdit()
             le.setReadOnly(True)
             le.setStyleSheet(
@@ -1034,7 +1047,7 @@ def _create_param_table(param_defs: list, parent: QWidget, font_scale: float = 1
         row.addWidget(le, stretch=1)
         value_widget = le
 
-        # 文件夹打开按钮（只读路径类型）
+        # 文件夹打开按钮（只读路径类型，readonly_text 不显示 📂）
         if pd.widget_type == "readonly":
             btn_fs = _px(10)
             btn_w = _px(24)
@@ -1077,8 +1090,8 @@ def _create_param_table(param_defs: list, parent: QWidget, font_scale: float = 1
     return rows
 
 
-def _fill_param_rows(rows: dict, values: dict):
-    """将值填入参数行控件"""
+def _fill_param_rows(rows: dict, values: dict, indicators: dict | None = None):
+    """将值填入参数行控件；若传入 indicators 自动刷新路径有效性指示器"""
     for key, (row_widget, value_widget, browse_btn) in rows.items():
         val = values.get(key)
         if isinstance(value_widget, QCheckBox):
@@ -1101,10 +1114,12 @@ def _fill_param_rows(rows: dict, values: dict):
                 value_widget.setText(str(val))
             value_widget.blockSignals(False)
         row_widget.setVisible(True)
+    if indicators is not None:
+        _refresh_path_indicators(rows, indicators)
 
 
-def _clear_param_rows(rows: dict):
-    """清空参数行内容"""
+def _clear_param_rows(rows: dict, indicators: dict | None = None):
+    """清空参数行内容；若传入 indicators 自动刷新路径有效性指示器"""
     for key, (row_widget, value_widget, browse_btn) in rows.items():
         if isinstance(value_widget, QCheckBox):
             value_widget.setChecked(False)
@@ -1117,6 +1132,8 @@ def _clear_param_rows(rows: dict):
             value_widget.setText("")
             value_widget.setPlaceholderText("（请先完整配置项目和 UE 路径）")
             value_widget.blockSignals(False)
+    if indicators is not None:
+        _refresh_path_indicators(rows, indicators)
 
 
 def _open_path_in_explorer(path_str: str):
@@ -1139,3 +1156,38 @@ def _open_path_in_explorer(path_str: str):
     # 降级：父目录也不存在但仍可能是有效路径（有后缀）
     if p.suffix and parent.exists():
         subprocess.Popen(['explorer', str(parent)])
+
+
+def _attach_path_indicators(rows: dict, path_keys: set) -> dict:
+    """为路径参数行末尾添加路径有效性指示器 (✅/❌)，返回 {value_key: QLabel}"""
+    indicators = {}
+    for key, (row_widget, value_widget, browse_btn) in rows.items():
+        if key not in path_keys:
+            continue
+        indicator = QLabel("")
+        indicator.setFixedWidth(28)
+        indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        indicator.setStyleSheet("font-size: 14px; background: transparent;")
+        row_widget.layout().addWidget(indicator)
+        indicators[key] = indicator
+    return indicators
+
+
+def _refresh_path_indicators(rows: dict, indicators: dict):
+    """根据 QLineEdit 文本检查路径是否存在，更新指示器"""
+    for key, indicator in indicators.items():
+        if key not in rows:
+            continue
+        _, value_widget, _ = rows[key]
+        if not isinstance(value_widget, QLineEdit):
+            continue
+        text = value_widget.text().strip()
+        if not text:
+            indicator.setText("❌")
+            indicator.setToolTip("路径为空")
+        elif Path(text).exists():
+            indicator.setText("✅")
+            indicator.setToolTip("路径有效 ✓")
+        else:
+            indicator.setText("❌")
+            indicator.setToolTip("路径不存在")

@@ -4,6 +4,7 @@
 
 #include "Engine/DeveloperSettingsBackedByCVars.h"
 #include "UObject/SoftObjectPath.h"
+#include "PSOCacheAssetList.h"
 
 #include "PSOCacheSettings.generated.h"
 
@@ -113,6 +114,12 @@ public:
 	/** PSO 覆盖策略所使用的 Warmup 地图路径 */
 	UPROPERTY(config, EditAnywhere, Category = "General", meta = (AllowedClasses = "/Script/Engine.World"))
 	FSoftObjectPath PSOCoverageMap;
+
+	/** 预收集的 PSO 资产列表 DataAsset（由 RefreshPSOCacheAssetList Commandlet 生成）。
+	 *  打包后运行时优先从此列表读取，避免依赖 AssetRegistry 运行时扫描。
+	 *  留空则回退到运行时 AssetRegistry 扫描。 */
+	UPROPERTY(config, EditAnywhere, Category = "General", meta = (AllowedClasses = "/Script/PSOCacheSystem.PSOCacheAssetList"))
+	TSoftObjectPtr<UPSOCacheAssetList> PSOCacheAssetList;
 
 	/** 覆盖策略全部完成后延迟多少秒才关闭（单位：秒，给编译异步完成留缓冲） */
 	UPROPERTY(config, EditAnywhere, Category = "General", meta = (ForceUnits = "s", ClampMin = "0.0", ClampMax = "1000.0"))

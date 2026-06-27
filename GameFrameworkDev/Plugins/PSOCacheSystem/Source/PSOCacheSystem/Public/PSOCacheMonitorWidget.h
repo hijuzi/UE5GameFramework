@@ -88,61 +88,61 @@ protected:
 
 	// ---- 容器 ----
 	UPROPERTY()
-	UVerticalBox* RootBox;
+	TObjectPtr<UVerticalBox> RootBox;
 
 	// ---- 标题和状态 ----
 	UPROPERTY()
-	UTextBlock* TextTitle;
+	TObjectPtr<UTextBlock> TextTitle;
 
 	UPROPERTY()
-	UTextBlock* TextStatus;
+	TObjectPtr<UTextBlock> TextStatus;
 
 	// ---- 阶段 ----
 	UPROPERTY()
-	UTextBlock* TextPhase;
+	TObjectPtr<UTextBlock> TextPhase;
 
 	// ---- 材质进度 ----
 	UPROPERTY()
-	UTextBlock* TextMaterialHeader;
+	TObjectPtr<UTextBlock> TextMaterialHeader;
 
 	UPROPERTY()
-	UTextBlock* TextMaterialProgress;
+	TObjectPtr<UTextBlock> TextMaterialProgress;
 
 	UPROPERTY()
-	UTextBlock* TextMaterialCurrent;
+	TObjectPtr<UTextBlock> TextMaterialCurrent;
 
 	// ---- Niagara 进度 ----
 	UPROPERTY()
-	UTextBlock* TextNiagaraHeader;
+	TObjectPtr<UTextBlock> TextNiagaraHeader;
 
 	UPROPERTY()
-	UTextBlock* TextNiagaraProgress;
+	TObjectPtr<UTextBlock> TextNiagaraProgress;
 
 	UPROPERTY()
-	UTextBlock* TextNiagaraCurrent;
+	TObjectPtr<UTextBlock> TextNiagaraCurrent;
 
 	// ---- 对象池 ----
 	UPROPERTY()
-	UTextBlock* TextPoolHeader;
+	TObjectPtr<UTextBlock> TextPoolHeader;
 
 	UPROPERTY()
-	UTextBlock* TextMatPool;
+	TObjectPtr<UTextBlock> TextMatPool;
 
 	UPROPERTY()
-	UTextBlock* TextNiagaraPool;
+	TObjectPtr<UTextBlock> TextNiagaraPool;
 
 	// ---- 配置 ----
 	UPROPERTY()
-	UTextBlock* TextConfigHeader;
+	TObjectPtr<UTextBlock> TextConfigHeader;
 
 	UPROPERTY()
-	UTextBlock* TextConfig;
+	TObjectPtr<UTextBlock> TextConfig;
 
 	// ---- 时间 ----
 	UPROPERTY()
-	UTextBlock* TextTime;
+	TObjectPtr<UTextBlock> TextTime;
 
 	// ---- PSO ----
 	UPROPERTY()
-	UTextBlock* TextPSOCache;
+	TObjectPtr<UTextBlock> TextPSOCache;
 };

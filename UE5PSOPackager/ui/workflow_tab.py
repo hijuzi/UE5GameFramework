@@ -1,6 +1,6 @@
 """
 WorkflowTab - 工作流执行标签页
-步骤清单 + 执行按钮组 + 进度条 + Step 3 操作面板 + 右侧步骤详情
+步骤清单 + 执行按钮组 + 进度条 + Step 4 操作面板 + Step 10 面板 + 右侧步骤详情
 """
 import subprocess
 from pathlib import Path
@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
     QLabel, QGroupBox, QSplitter, QScrollArea, QFrame, QSizePolicy,
     QMessageBox, QDialog, QDialogButtonBox,
 )
-from PySide6.QtCore import Qt, Signal, QThread
+from PySide6.QtCore import Qt, Signal, QThread, QTimer
 from PySide6.QtGui import QFont
 
 from step_definitions import PSO_WORKFLOW_STEPS, StepStatus
@@ -250,8 +250,8 @@ class WorkflowTab(QWidget):
         step_layout.addWidget(self._step_list)
         left_layout.addWidget(step_group)
 
-        # Step 3 控制面板（默认隐藏）
-        self._step3_panel = QGroupBox("Step 3: 自动监听 PSO 记录")
+        # Step 4 控制面板（默认隐藏）
+        self._step3_panel = QGroupBox("Step 4: 自动监听 PSO 记录")
         self._step3_panel.setVisible(False)
         self._step3_panel.setStyleSheet("""
             QGroupBox {
@@ -308,8 +308,8 @@ class WorkflowTab(QWidget):
         step3_layout.addLayout(step3_btn_layout)
         left_layout.addWidget(self._step3_panel)
 
-        # Step 9 控制面板（默认隐藏）
-        self._step9_panel = QGroupBox("Step 9: 测试 PSO 覆盖范围")
+        # Step 10 控制面板（默认隐藏）
+        self._step9_panel = QGroupBox("Step 10: 测试 PSO 覆盖范围")
         self._step9_panel.setVisible(False)
         self._step9_panel.setStyleSheet("""
             QGroupBox {
@@ -363,10 +363,10 @@ class WorkflowTab(QWidget):
         # 进度条
         self._progress_bar = QProgressBar()
         self._progress_bar.setMinimum(0)
-        self._progress_bar.setMaximum(10)
+        self._progress_bar.setMaximum(11)
         self._progress_bar.setValue(0)
         self._progress_bar.setTextVisible(True)
-        self._progress_bar.setFormat("进度: %v / 10")
+        self._progress_bar.setFormat("进度: %v / 11")
         left_layout.addWidget(self._progress_bar)
 
         # 按钮组
@@ -379,6 +379,19 @@ class WorkflowTab(QWidget):
         self._btn_run_selected = QPushButton("执行选中步")
         self._btn_run_selected.clicked.connect(self._on_run_selected)
         btn_layout.addWidget(self._btn_run_selected)
+
+        self._btn_run_all_ci = QPushButton("执行全部CI流程")
+        self._btn_run_all_ci.setObjectName("btnAllCI")
+        self._btn_run_all_ci.setMinimumHeight(32)
+        self._btn_run_all_ci.setStyleSheet("""
+            QPushButton#btnAllCI {
+                background-color: #6A1B9A; color: white; border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold;
+            }
+            QPushButton#btnAllCI:hover { background-color: #8E24AA; }
+            QPushButton#btnAllCI:disabled { background-color: #555; color: #888; }
+        """)
+        self._btn_run_all_ci.clicked.connect(self._on_run_all_ci)
+        btn_layout.addWidget(self._btn_run_all_ci)
 
         self._btn_run_step9 = QPushButton("测试 PSO 覆盖")
         self._btn_run_step9.setObjectName("btnStep9")
@@ -453,7 +466,7 @@ class WorkflowTab(QWidget):
         pso_cov_layout.setSpacing(8)
 
         # 空态提示
-        self._pso_no_data_hint = QLabel("尚未执行 Step 9\n请点击「测试 PSO 覆盖」按钮运行后查看结果")
+        self._pso_no_data_hint = QLabel("尚未执行 Step 10\n请点击「测试 PSO 覆盖」按钮运行后查看结果")
         self._pso_no_data_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._pso_no_data_hint.setWordWrap(True)
         self._pso_no_data_hint.setStyleSheet("color: #666666; font-size: 12px; padding: 20px; font-weight: normal;")
@@ -565,6 +578,7 @@ class WorkflowTab(QWidget):
         self._runner.step9_game_running_signal.connect(self._on_step9_game_running)
         self._runner.pso_coverage_data.connect(self._on_pso_coverage_data)
         self._runner.ask_close_editor.connect(self._on_ask_close_editor)
+        self._runner.ask_skip_ci.connect(self._on_ask_skip_ci)
         self._runner.ask_ini_fix.connect(self._on_ask_ini_fix)
         self._runner.all_done_signal.connect(self._on_all_done)
 
@@ -583,11 +597,17 @@ class WorkflowTab(QWidget):
             return
         self._start_run(lambda: self._runner.run_step(row))
 
-    def _on_run_step9(self):
-        """单独执行 Step 9: 测试 PSO 覆盖范围"""
+    def _on_run_all_ci(self):
+        """单独执行 Step 2: 执行全部CI流程"""
         if self._running:
             return
-        self._start_run(lambda: self._runner.run_step(9))
+        self._start_run(lambda: self._runner.run_step(2))
+
+    def _on_run_step9(self):
+        """单独执行 Step 10: 测试 PSO 覆盖范围"""
+        if self._running:
+            return
+        self._start_run(lambda: self._runner.run_step(10))
 
     def _start_run(self, target):
         if self._running:
@@ -615,6 +635,7 @@ class WorkflowTab(QWidget):
         self._running = running
         self._btn_run_all.setEnabled(not running)
         self._btn_run_selected.setEnabled(not running)
+        self._btn_run_all_ci.setEnabled(not running)
         self._btn_run_step9.setEnabled(not running)
         self._btn_stop.setEnabled(running)
         if not running and self._thread is not None:
@@ -666,7 +687,7 @@ class WorkflowTab(QWidget):
         )
         self._progress_bar.setValue(done)
 
-    # ---- Step 3 ----
+    # ---- Step 4 ----
 
     def _on_step3_hint(self, instructions: str):
         pass
@@ -706,17 +727,17 @@ class WorkflowTab(QWidget):
         self._lbl_step3_status.setText("用户手动跳过，正在继续...")
         self._runner.skip_step3_wait()
 
-    # ---- Step 9 ---- 
+    # ---- Step 10 ---- 
 
     def _on_step9_panel(self, active: bool):
-        """Step 9 面板显示/隐藏"""
+        """Step 10 面板显示/隐藏"""
         self._step9_panel.setVisible(active)
         if active:
             self._lbl_step9_status.setText("等待游戏启动...")
             self._btn_step9_launch.setEnabled(False)
 
     def _on_step9_game_running(self, running: bool):
-        """Step 9 游戏进程运行状态"""
+        """Step 10 游戏进程运行状态"""
         self._btn_step9_close_game.setEnabled(running)
         if running:
             self._lbl_step9_status.setText("游戏运行中，请遍历场景后退出...")
@@ -726,13 +747,13 @@ class WorkflowTab(QWidget):
             self._btn_step9_launch.setEnabled(True)
 
     def _on_step9_launch(self):
-        """Step 9 手动打开打包程序"""
+        """Step 10 手动打开打包程序"""
         self._btn_step9_launch.setEnabled(False)
         self._lbl_step9_status.setText("正在打开打包程序...")
         self._runner.launch_step9_game()
 
     def _on_step9_close_game(self):
-        """Step 9 关闭游戏（设置标志 + 直接 taskkill 确保游戏真正终止）"""
+        """Step 10 关闭游戏（设置标志 + 直接 taskkill 确保游戏真正终止）"""
         self._btn_step9_close_game.setEnabled(False)
         self._lbl_step9_status.setText("正在关闭游戏...")
         self._runner.close_step9_game()
@@ -793,7 +814,7 @@ class WorkflowTab(QWidget):
         return card
 
     def _on_pso_coverage_data(self, data: dict):
-        """接收 Step 9 的 PSO 覆盖数据，更新可视化面板"""
+        """接收 Step 10 的 PSO 覆盖数据，更新可视化面板"""
         coverage_pct = data.get("coverage_pct", 0.0)
         cache_entries = data.get("cache_entries", 0)
         new_pso_count = data.get("new_pso_count", 0)
@@ -894,6 +915,12 @@ class WorkflowTab(QWidget):
         )
         should_close = (reply == QMessageBox.StandardButton.Yes)
         self._runner.on_editor_close_response(should_close)
+
+    def _on_ask_skip_ci(self):
+        """全部执行时，Step 2 弹窗询问是否跳过 CI 流程（10 秒倒计时）"""
+        dlg = _CISkipDialog(self)
+        dlg.exec()
+        self._runner.on_skip_ci_response(dlg.should_skip)
 
     def _on_ask_ini_fix(self, summary: str, items: list):
         """Step 1 配置检查未通过，弹窗询问是否自动写入缺失的 INI 配置"""
@@ -1050,3 +1077,107 @@ class _PSOIniFixDialog(QDialog):
         btn_layout.addWidget(fix_btn)
 
         layout.addLayout(btn_layout)
+
+class _CISkipDialog(QDialog):
+    """CI 流程跳过确认弹窗（10 秒倒计时，超时后不跳过）"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("CI 流程确认")
+        self.setFixedSize(400, 160)
+        self._countdown = 10
+        self._should_skip = False  # 默认不跳过
+
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowTitleHint
+        )
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1E1E1E;
+                color: #CCCCCC;
+            }
+            QLabel {
+                color: #E0E0E0;
+                background: transparent;
+            }
+            QPushButton {
+                background-color: #3D3D3D;
+                color: #E0E0E0;
+                border: 1px solid #4D4D4D;
+                border-radius: 4px;
+                padding: 8px 18px;
+                font-weight: bold;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #4D4D4D;
+            }
+            QPushButton#btnContinue {
+                background-color: #0078D4;
+                color: white;
+                border: none;
+            }
+            QPushButton#btnContinue:hover {
+                background-color: #1A8CE8;
+            }
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(12)
+
+        # 提示文字
+        lbl_title = QLabel("CI 流程会很长，是否跳过？")
+        lbl_title.setStyleSheet("font-size: 14px; font-weight: bold; color: #E0E0E0;")
+        layout.addWidget(lbl_title)
+
+        # 倒计时：明确告知超时后不跳过
+        self._lbl_countdown = QLabel(f"{self._countdown} 秒后不跳过，自动执行")
+        self._lbl_countdown.setStyleSheet("color: #F0C040; font-size: 12px;")
+        layout.addWidget(self._lbl_countdown)
+
+        # 按钮区
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+
+        self._btn_skip = QPushButton("跳过")
+        self._btn_skip.clicked.connect(self._on_skip)
+        btn_layout.addWidget(self._btn_skip)
+
+        self._btn_continue = QPushButton("不跳过（继续执行）")
+        self._btn_continue.setObjectName("btnContinue")
+        self._btn_continue.clicked.connect(self._on_continue)
+        btn_layout.addWidget(self._btn_continue)
+
+        layout.addLayout(btn_layout)
+
+        # 倒计时定时器
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(1000)
+
+    def _tick(self):
+        self._countdown -= 1
+        if self._countdown <= 0:
+            self._timer.stop()
+            self._should_skip = False  # 超时不跳过
+            self.accept()
+        else:
+            self._lbl_countdown.setText(f"{self._countdown} 秒后不跳过，自动执行")
+
+    def _on_skip(self):
+        self._timer.stop()
+        self._should_skip = True
+        self.accept()
+
+    def _on_continue(self):
+        self._timer.stop()
+        self._should_skip = False
+        self.accept()
+
+    @property
+    def should_skip(self) -> bool:
+        return self._should_skip
