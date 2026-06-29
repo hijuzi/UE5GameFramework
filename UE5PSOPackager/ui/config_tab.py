@@ -82,11 +82,13 @@ _PSO_COLLECT_PARAMS = [
     ParamRow("游戏路径", "", "game_exe", "readonly", None),
     ParamRow("自动收集PSO记录", "-psosysautocoverage", "auto_coverage", "check", None),
     ParamRow("收集完自动退出游戏", "-psosysautoquitgame", "auto_quit", "check", None),
+    ParamRow("清除驱动PSO缓存", "-clearPSODriverCache", "clear_driver_cache", "check", None),
 ]
 
 _STEP9_TEST_PARAMS = [
     ParamRow("游戏路径", "", "game_exe", "readonly", None),
     ParamRow("PSO日志", "-logpso", "logpso", "check", None),
+    ParamRow("清除驱动PSO缓存", "-clearPSODriverCache", "clear_driver_cache", "check", None),
     ParamRow("自动关闭时间(分钟)", "", "auto_close_minutes", "text", None),
 ]
 

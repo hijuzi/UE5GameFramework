@@ -435,6 +435,7 @@ class BuildParamsTab(QWidget):
             "game_exe": exe_path,
             "auto_coverage": True,
             "auto_quit": True,
+            "clear_driver_cache": True,
         }
         _fill_param_rows(rows, defaults, indicators)
 
@@ -521,6 +522,7 @@ class BuildParamsTab(QWidget):
         defaults = {
             "game_exe":           exe_path,
             "logpso":             getattr(proj, 'step9_logpso', True),
+            "clear_driver_cache": getattr(proj, 'step9_clear_driver_cache', True),
             "auto_close_minutes": str(getattr(proj, 'step9_auto_close_minutes', 60)),
         }
         _fill_param_rows(rows, defaults, indicators)

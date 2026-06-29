@@ -157,6 +157,8 @@ class StepRunner(QObject):
             flags.append("-psosysautocoverage")
         if self._ui_params.get("auto_quit", True):
             flags.append("-psosysautoquitgame")
+        if self._ui_params.get("clear_driver_cache", True):
+            flags.append("-clearPSODriverCache")
 
         flag_str = " ".join(flags)
         full_cmd = f'"{exe_path}" {flag_str}'.strip()
@@ -217,6 +219,12 @@ class StepRunner(QObject):
             args_parts = []
             if step9_logpso:
                 args_parts.append(f'-logpso -log="{log_file}"')
+            step9_clear_driver_cache = self._ui_params.get("clear_driver_cache",
+                getattr(self._project, 'step9_clear_driver_cache', True))
+            if isinstance(step9_clear_driver_cache, str):
+                step9_clear_driver_cache = step9_clear_driver_cache.lower() in ("true", "1", "yes")
+            if step9_clear_driver_cache:
+                args_parts.append("-clearPSODriverCache")
 
             extra_str = " ".join(args_parts)
             self._log("INFO", f"Step 9 启动游戏 ({extra_str.strip() if extra_str else '无额外参数'})，"
@@ -1994,12 +2002,15 @@ class StepRunner(QObject):
 
         # 读取 Step 9 配置参数
         step9_logpso = getattr(proj, 'step9_logpso', True)
+        step9_clear_driver_cache = getattr(proj, 'step9_clear_driver_cache', True)
         step9_auto_close_minutes = max(60, min(14400, getattr(proj, 'step9_auto_close_minutes', 60)))
 
         # 构建启动参数
         launch_args = []
         if step9_logpso:
             launch_args.append(f"-logpso -log={log_filename}")
+        if step9_clear_driver_cache:
+            launch_args.append("-clearPSODriverCache")
         launch_args_str = " ".join(launch_args)
 
         wait_after_close = 3  # 关闭后等待刷新日志的秒数
@@ -2139,18 +2150,18 @@ class StepRunner(QObject):
                 pso_miss_count += 1
 
         # 计算覆盖率
-        total_at_exit = max(total_saved, cache_entries + new_pso_count)
-        if total_at_exit > 0:
-            coverage_pct = (cache_entries / total_at_exit) * 100
+        # 分母使用「游戏实际涉及的 PSO 数」= 预编译条目 + 运行时新编译
+        # 不使用 total_saved 是因为它包含了引擎自带 PSO 和遗留 PSO，
+        # 这些不需要预编译覆盖，会导致覆盖率虚低
+        game_used = cache_entries + new_pso_count
+        if game_used > 0:
+            coverage_pct = (cache_entries / game_used) * 100
         else:
             coverage_pct = 0.0
-            total_at_exit = cache_entries + new_pso_count
 
-        # 如果 total_saved 为 0，尝试用退出时另有记录推断
+        # 兜底：如果 total_saved 为 0，用 game_used 填充（供报告展示用）
         if total_saved == 0:
-            total_saved = total_at_exit
-
-        coverage_pct = (cache_entries / total_saved * 100) if total_saved > 0 else 0.0
+            total_saved = game_used
 
         # 评估等级
         if coverage_pct >= 95:
@@ -2183,11 +2194,19 @@ class StepRunner(QObject):
         if cache_guid:
             self._log("INFO", f"  缓存 GUID:       {cache_guid}")
         self._log("INFO", f"  运行时新 PSO:    {new_pso_count}")
-        self._log("INFO", f"  退出时 PSO 总数: {total_saved}")
+        self._log("INFO", f"  游戏涉及 PSO 数: {game_used}  (= 预编译 {cache_entries} + 运行时 {new_pso_count})")
+        self._log("INFO", f"  缓存文件总条目:  {total_saved} (含引擎内置 PSO)")
         self._log("INFO", "-" * 60)
-        self._log("INFO", f"  覆盖率:          {coverage_pct:.1f}%")
+        self._log("INFO", f"  覆盖率:          {coverage_pct:.1f}%  (= 预编译 {cache_entries} / 游戏涉及 {game_used})")
         self._log("INFO", f"  评估:            {grade}")
         self._log("INFO", f"  建议:            {advice}")
+
+        # 如果缓存文件总条目远大于游戏涉及数，说明分母差异提示
+        if total_saved > game_used * 1.5:
+            note = f"注：缓存文件总条目({total_saved})远大于游戏涉及PSO数({game_used})，"
+            note += "覆盖率已按游戏实际 PSO 为分母计算，"
+            note += f"若用文件总数则虚低至 {cache_entries / total_saved * 100:.1f}%"
+            self._log("INFO", f"  {note}")
 
         # 显示前 10 个新 PSO 的 Hash
         if new_pso_list:
@@ -2203,7 +2222,8 @@ class StepRunner(QObject):
         # 填充详情
         self._add_step_detail(f"预编译缓存条目: {cache_entries}")
         self._add_step_detail(f"运行时新 PSO: {new_pso_count}")
-        self._add_step_detail(f"退出时 PSO 总数: {total_saved}")
+        self._add_step_detail(f"游戏涉及 PSO: {game_used} (= {cache_entries}+{new_pso_count})")
+        self._add_step_detail(f"缓存文件总条目: {total_saved}")
         self._add_step_detail(f"覆盖率: {coverage_pct:.1f}%")
         self._add_step_detail(f"评估: {grade}")
         self._add_step_detail(advice)
@@ -2214,6 +2234,7 @@ class StepRunner(QObject):
             "cache_guid": cache_guid,
             "new_pso_count": new_pso_count,
             "new_pso_list": new_pso_list[:10],
+            "game_used": game_used,
             "total_saved": total_saved,
             "total_new_saved": total_new_saved,
             "coverage_pct": coverage_pct,

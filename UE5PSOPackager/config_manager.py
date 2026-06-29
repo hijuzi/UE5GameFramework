@@ -69,6 +69,7 @@ class ProjectConfig:
     # ---- Step 9: 测试 PSO 覆盖范围 ---- 
     step9_auto_close_minutes: int = 60        # 自动关闭时间（分钟），范围 60-14400
     step9_logpso: bool = True                 # 是否启用 -logpso 参数
+    step9_clear_driver_cache: bool = True     # 是否启用 -clearPSODriverCache 清除驱动缓存
 
     def validate(self) -> list[str]:
         """验证项目配置，返回错误列表"""
@@ -376,6 +377,7 @@ class ConfigManager:
                 "spc_target_relative": proj.spc_target_relative,
                 "step9_auto_close_minutes": proj.step9_auto_close_minutes,
                 "step9_logpso": proj.step9_logpso,
+                "step9_clear_driver_cache": proj.step9_clear_driver_cache,
             })
 
         return {
@@ -421,6 +423,7 @@ class ConfigManager:
                     proj.spc_target_relative = data.get("spc_target_relative", "Build\\Windows\\PipelineCaches")
                     proj.step9_auto_close_minutes = data.get("step9_auto_close_minutes", 60)
                     proj.step9_logpso = data.get("step9_logpso", True)
+                    proj.step9_clear_driver_cache = data.get("step9_clear_driver_cache", True)
                 self.projects.append(proj)
 
         return True

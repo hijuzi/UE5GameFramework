@@ -323,8 +323,8 @@ class WorkflowTab(QWidget):
         """)
         step9_layout = QVBoxLayout(self._step9_panel)
         self._lbl_step9_hint = QLabel(
-            "游戏已启动（带 -logpso 参数），请遍历所有场景。\n"
-            "测试完成后正常退出游戏，工具将自动分析 PSO 日志。"
+            "游戏已启动：-logpso（生成 PSO 日志）  -clearPSODriverCache（清空驱动缓存）\n"
+            "请遍历所有场景。测试完成后正常退出游戏，工具将自动分析 PSO 日志。"
         )
         self._lbl_step9_hint.setWordWrap(True)
         self._lbl_step9_hint.setStyleSheet("color: #CCCCCC; padding: 4px 0;")
@@ -449,7 +449,7 @@ class WorkflowTab(QWidget):
 
         # ---- PSO 覆盖范围可视化面板（步骤详情下方） ----
         self._pso_coverage_panel = QGroupBox("PSO 覆盖范围")
-        self._pso_coverage_panel.setFixedHeight(240)
+        self._pso_coverage_panel.setFixedHeight(345)
         self._pso_coverage_panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._pso_coverage_panel.setStyleSheet("""
             QGroupBox {
@@ -462,7 +462,7 @@ class WorkflowTab(QWidget):
             }
         """)
         pso_cov_layout = QVBoxLayout(self._pso_coverage_panel)
-        pso_cov_layout.setContentsMargins(12, 8, 12, 12)
+        pso_cov_layout.setContentsMargins(14, 14, 14, 14)
         pso_cov_layout.setSpacing(8)
 
         # 空态提示
@@ -477,7 +477,7 @@ class WorkflowTab(QWidget):
         self._pso_data_container.setVisible(False)
         pso_data_layout = QVBoxLayout(self._pso_data_container)
         pso_data_layout.setContentsMargins(0, 0, 0, 0)
-        pso_data_layout.setSpacing(10)
+        pso_data_layout.setSpacing(8)
 
         # -- 覆盖率大进度条 --
         coverage_bar_layout = QVBoxLayout()
@@ -487,7 +487,7 @@ class WorkflowTab(QWidget):
         coverage_label_row.addWidget(self._pso_coverage_label)
         coverage_label_row.addStretch()
         self._pso_coverage_pct_label = QLabel("0%")
-        self._pso_coverage_pct_label.setStyleSheet("color: #888888; font-size: 22px; font-weight: bold;")
+        self._pso_coverage_pct_label.setStyleSheet("color: #888888; font-size: 18px; font-weight: bold;")
         coverage_label_row.addWidget(self._pso_coverage_pct_label)
         coverage_bar_layout.addLayout(coverage_label_row)
 
@@ -514,31 +514,87 @@ class WorkflowTab(QWidget):
         # -- 等级标签 --
         self._pso_grade_label = QLabel("")
         self._pso_grade_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._pso_grade_label.setStyleSheet("font-size: 16px; font-weight: bold; padding: 6px 0;")
+        self._pso_grade_label.setStyleSheet("font-size: 14px; font-weight: bold; padding: 2px 0;")
         pso_data_layout.addWidget(self._pso_grade_label)
 
-        # -- 三个指标卡片行 --
-        metrics_row = QHBoxLayout()
-        metrics_row.setSpacing(8)
+        # -- 三个指标卡片行（固定均分宽度） --
+        self._pso_metrics_row = QHBoxLayout()
+        self._pso_metrics_row.setSpacing(8)
 
         self._pso_card_cache = self._make_metric_card("📦 预编译缓存", "0")
         self._pso_card_new = self._make_metric_card("🆕 运行时新 PSO", "0")
-        self._pso_card_total = self._make_metric_card("📊 退出时总数", "0")
+        self._pso_card_total = self._make_metric_card("📊 游戏涉及 PSO", "0")
 
-        metrics_row.addWidget(self._pso_card_cache)
-        metrics_row.addWidget(self._pso_card_new)
-        metrics_row.addWidget(self._pso_card_total)
-        pso_data_layout.addLayout(metrics_row)
+        self._pso_metrics_row.addWidget(self._pso_card_cache, 1)
+        self._pso_metrics_row.addWidget(self._pso_card_new, 1)
+        self._pso_metrics_row.addWidget(self._pso_card_total, 1)
+        pso_data_layout.addLayout(self._pso_metrics_row)
+        pso_data_layout.addSpacing(6)
+
+        # -- 分段占比条 --
+        self._pso_stack_bar_widget = QWidget()
+        stack_bar_layout = QVBoxLayout(self._pso_stack_bar_widget)
+        stack_bar_layout.setContentsMargins(0, 0, 0, 0)
+        stack_bar_layout.setSpacing(3)
+
+        # 分段条容器
+        self._stack_segments_layout = QHBoxLayout()
+        self._stack_segments_layout.setSpacing(2)
+        self._stack_segments_layout.setContentsMargins(0, 0, 0, 0)
+        self._stack_seg_cache = QLabel()
+        self._stack_seg_cache.setFixedHeight(16)
+        self._stack_seg_cache.setStyleSheet("background-color: #5B8DEF; border-radius: 3px; min-width: 4px;")
+        self._stack_seg_new = QLabel()
+        self._stack_seg_new.setFixedHeight(16)
+        self._stack_seg_new.setStyleSheet("background-color: #F0A040; border-radius: 3px; min-width: 4px;")
+        self._stack_seg_builtin = QLabel()
+        self._stack_seg_builtin.setFixedHeight(16)
+        self._stack_seg_builtin.setStyleSheet("background-color: #555555; border-radius: 3px; min-width: 4px;")
+        self._stack_segments_layout.addWidget(self._stack_seg_cache)
+        self._stack_segments_layout.addWidget(self._stack_seg_new)
+        self._stack_segments_layout.addWidget(self._stack_seg_builtin)
+        stack_bar_layout.addLayout(self._stack_segments_layout)
+
+        # 图例行（三个图例均匀分布占满整行）
+        legend_row = QHBoxLayout()
+        legend_row.setSpacing(0)
+        legend_row.setContentsMargins(4, 0, 4, 0)
+        self._stack_legend_labels = []
+        legend_row.addStretch()
+        for color, label_text in [
+            ("#5B8DEF", "预编译缓存"),
+            ("#F0A040", "运行时新PSO"),
+            ("#555555", "引擎内置"),
+        ]:
+            dot = QLabel()
+            dot.setFixedSize(8, 8)
+            dot.setStyleSheet(f"background-color: {color}; border-radius: 4px;")
+            legend_row.addWidget(dot)
+            legend_row.addSpacing(4)
+            lbl = QLabel(label_text)
+            lbl.setStyleSheet("color: #999999; font-size: 12px;")
+            legend_row.addWidget(lbl)
+            self._stack_legend_labels.append(lbl)
+            legend_row.addStretch()
+        stack_bar_layout.addLayout(legend_row)
+
+        pso_data_layout.addWidget(self._pso_stack_bar_widget)
+
+        # -- 缓存文件总条目（含引擎内置 PSO） --
+        self._pso_total_saved_label = QLabel("")
+        self._pso_total_saved_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._pso_total_saved_label.setStyleSheet("color: #999999; font-size: 12px; padding: 2px 0;")
+        pso_data_layout.addWidget(self._pso_total_saved_label)
 
         # -- 日志信息 --
         self._pso_log_info = QLabel("")
-        self._pso_log_info.setStyleSheet("color: #666666; font-size: 10px;")
+        self._pso_log_info.setStyleSheet("color: #666666; font-size: 11px;")
         pso_data_layout.addWidget(self._pso_log_info)
 
         # -- 建议文本 --
         self._pso_advice_label = QLabel("")
         self._pso_advice_label.setWordWrap(True)
-        self._pso_advice_label.setStyleSheet("color: #AAAAAA; font-size: 11px; padding-top: 4px;")
+        self._pso_advice_label.setStyleSheet("color: #AAAAAA; font-size: 12px; padding-top: 2px;")
         pso_data_layout.addWidget(self._pso_advice_label)
 
         pso_cov_layout.addWidget(self._pso_data_container)
@@ -800,12 +856,12 @@ class WorkflowTab(QWidget):
         layout.setSpacing(2)
 
         lbl_title = QLabel(title)
-        lbl_title.setStyleSheet("color: #888888; font-size: 10px; font-weight: bold; border: none; background: transparent;")
+        lbl_title.setStyleSheet("color: #888888; font-size: 12px; font-weight: bold; border: none; background: transparent;")
         lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(lbl_title)
 
         lbl_value = QLabel(value)
-        lbl_value.setStyleSheet("color: #E0E0E0; font-size: 18px; font-weight: bold; border: none; background: transparent;")
+        lbl_value.setStyleSheet("color: #E0E0E0; font-size: 15px; font-weight: bold; border: none; background: transparent;")
         lbl_value.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_value.setObjectName("metric_value")
         layout.addWidget(lbl_value)
@@ -818,6 +874,7 @@ class WorkflowTab(QWidget):
         coverage_pct = data.get("coverage_pct", 0.0)
         cache_entries = data.get("cache_entries", 0)
         new_pso_count = data.get("new_pso_count", 0)
+        game_used = data.get("game_used", cache_entries + new_pso_count)
         total_saved = data.get("total_saved", 0)
         grade = data.get("grade", "")
         advice = data.get("advice", "")
@@ -864,7 +921,7 @@ class WorkflowTab(QWidget):
 
         # 覆盖率百分比
         self._pso_coverage_pct_label.setText(f"{coverage_pct:.1f}%")
-        self._pso_coverage_pct_label.setStyleSheet(f"color: {pct_color}; font-size: 22px; font-weight: bold;")
+        self._pso_coverage_pct_label.setStyleSheet(f"color: {pct_color}; font-size: 18px; font-weight: bold;")
 
         # 进度条
         self._pso_coverage_bar.setValue(int(coverage_pct))
@@ -882,18 +939,55 @@ class WorkflowTab(QWidget):
 
         # 等级
         self._pso_grade_label.setText(grade)
-        self._pso_grade_label.setStyleSheet(f"font-size: 16px; font-weight: bold; padding: 6px 0; color: {grade_color};")
+        self._pso_grade_label.setStyleSheet(f"font-size: 14px; font-weight: bold; padding: 2px 0; color: {grade_color};")
 
         # 三张指标卡片
         self._set_card_value(self._pso_card_cache, str(cache_entries))
         self._set_card_value(self._pso_card_new, str(new_pso_count))
-        self._set_card_value(self._pso_card_total, str(total_saved))
+        self._set_card_value(self._pso_card_total, str(game_used))
+
+        # 分段占比条
+        engine_builtin = total_saved - game_used
+        if total_saved > 0:
+            self._pso_stack_bar_widget.setVisible(True)
+            # 更新分段宽度（stretch 按数值比例分配）
+            self._stack_segments_layout.setStretch(0, cache_entries)
+            self._stack_segments_layout.setStretch(1, new_pso_count)
+            self._stack_segments_layout.setStretch(2, engine_builtin)
+            # 更新图例：附加数值和百分比
+            self._update_stack_legend(cache_entries, new_pso_count, engine_builtin, total_saved)
+        else:
+            self._pso_stack_bar_widget.setVisible(False)
+
+        # 缓存文件总条目（含引擎内置 PSO）
+        if total_saved > 0:
+            self._pso_total_saved_label.setText(f"缓存文件总条目: {total_saved}  引擎内置（{total_saved} - {game_used} = {engine_builtin}）")
+        else:
+            self._pso_total_saved_label.setText("")
 
         # 日志信息
         self._pso_log_info.setText(f"日志文件: {log_file_name}  ({log_file_size_kb:.1f} KB)")
 
         # 建议
         self._pso_advice_label.setText(f"💡 {advice}")
+
+    def _update_stack_legend(self, cache_entries: int, new_pso_count: int, engine_builtin: int, total_saved: int = 0):
+        """更新分段占比条图例的数值（含百分比）"""
+        if total_saved > 0:
+            names = [
+                f"预编译缓存  {cache_entries} ({cache_entries / total_saved * 100:.1f}%)",
+                f"运行时新PSO  {new_pso_count} ({new_pso_count / total_saved * 100:.1f}%)",
+                f"引擎内置  {engine_builtin} ({engine_builtin / total_saved * 100:.1f}%)",
+            ]
+        else:
+            names = [
+                f"预编译缓存  {cache_entries}",
+                f"运行时新PSO  {new_pso_count}",
+                f"引擎内置  {engine_builtin}",
+            ]
+        for i, lbl in enumerate(self._stack_legend_labels):
+            if i < len(names):
+                lbl.setText(names[i])
 
     @staticmethod
     def _set_card_value(card: QFrame, value: str):
