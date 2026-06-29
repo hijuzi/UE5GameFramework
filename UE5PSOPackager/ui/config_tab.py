@@ -61,6 +61,7 @@ _FIRST_FINAL_PARAMS = [
     ParamRow("编译", "-compile", "compile", "check", None),
     ParamRow("构建", "-build", "build", "check", None),
     ParamRow("烘焙", "-cook", "cook", "check", None),
+    ParamRow("迭代烘焙", "-iterate", "iterate", "check", None),
     ParamRow("部署", "-stage", "stage", "check", None),
     ParamRow("PAK打包", "-pak", "pak", "check", None),
     ParamRow("归档", "-archive", "archive", "check", None),
@@ -80,6 +81,7 @@ _CACHE_CONVERT_PARAMS = [
 
 _PSO_COLLECT_PARAMS = [
     ParamRow("游戏路径", "", "game_exe", "readonly", None),
+    ParamRow("PSO收集地图", "", "pso_collect_map", "text", None),
     ParamRow("自动收集PSO记录", "-psosysautocoverage", "auto_coverage", "check", None),
     ParamRow("收集完自动退出游戏", "-psosysautoquitgame", "auto_quit", "check", None),
     ParamRow("清除驱动PSO缓存", "-clearPSODriverCache", "clear_driver_cache", "check", None),
@@ -267,6 +269,10 @@ class ConfigTab(QWidget):
         row_pso.addWidget(self._proj_pso_work)
         row_pso.addWidget(btn_pso)
         proj_form_layout.addRow("PSO 工作目录:", row_pso)
+
+        self._proj_pso_collect_map = QLineEdit()
+        self._proj_pso_collect_map.setPlaceholderText("如 /PSOCacheSystem/Maps/PSOCoverageMap")
+        proj_form_layout.addRow("PSO 收集地图:", self._proj_pso_collect_map)
 
         self._proj_shk_rel = QLineEdit()
         self._proj_shk_rel.setReadOnly(True)
@@ -758,6 +764,7 @@ class ConfigTab(QWidget):
         self._proj_uproject.setText(proj.uproject_file)
         self._proj_output.setText(proj.output_dir)
         self._proj_pso_work.setText(proj.pso_cache_work_dir)
+        self._proj_pso_collect_map.setText(proj.pso_collect_map)
         self._proj_shk_rel.setText(proj.shk_source_relative)
         self._proj_rec_rel.setText(proj.rec_source_relative)
         self._proj_spc_rel.setText(proj.spc_target_relative)
@@ -924,6 +931,7 @@ class ConfigTab(QWidget):
             proj.uproject_file = self._proj_uproject.text().strip()
             proj.output_dir = self._proj_output.text().strip()
             proj.pso_cache_work_dir = self._proj_pso_work.text().strip()
+            proj.pso_collect_map = self._proj_pso_collect_map.text().strip()
             proj.shk_source_relative = self._proj_shk_rel.text().strip()
             proj.rec_source_relative = self._proj_rec_rel.text().strip()
             proj.spc_target_relative = self._proj_spc_rel.text().strip()

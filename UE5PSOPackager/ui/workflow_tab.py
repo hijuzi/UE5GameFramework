@@ -208,9 +208,10 @@ class WorkflowTab(QWidget):
     log_signal = Signal(str, str)
     step_status_signal = Signal(int, int)
 
-    def __init__(self, runner: StepRunner, parent=None):
+    def __init__(self, runner: StepRunner, parent=None, build_params_collector=None):
         super().__init__(parent)
         self._runner = runner
+        self._build_params_collector = build_params_collector  # callable → dict
         self._step_items: list[QListWidgetItem] = []
         self._step_states: dict[int, int] = {}
         self._result_cards: dict[int, StepResultCard] = {}
@@ -640,9 +641,17 @@ class WorkflowTab(QWidget):
 
     # ---- 执行控制 ----
 
+    def _sync_build_params(self):
+        """将参数管理页面的当前值同步到 runner，确保 UAT 参数正确"""
+        if self._build_params_collector:
+            params = self._build_params_collector()
+            if params:
+                self._runner.set_ui_params(params)
+
     def _on_run_all(self):
         if self._running:
             return
+        self._sync_build_params()
         self._start_run(self._runner.run_all)
 
     def _on_run_selected(self):
@@ -651,6 +660,7 @@ class WorkflowTab(QWidget):
         row = self._step_list.currentRow()
         if row < 0:
             return
+        self._sync_build_params()
         self._start_run(lambda: self._runner.run_step(row))
 
     def _on_run_all_ci(self):

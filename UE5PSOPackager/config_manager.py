@@ -71,6 +71,9 @@ class ProjectConfig:
     step9_logpso: bool = True                 # 是否启用 -logpso 参数
     step9_clear_driver_cache: bool = True     # 是否启用 -clearPSODriverCache 清除驱动缓存
 
+    # ---- PSO 收集地图 ----
+    pso_collect_map: str = ""                 # PSO收集时启动的关卡名（如 /PSOCacheSystem/Maps/PSOCoverageMap）
+
     def validate(self) -> list[str]:
         """验证项目配置，返回错误列表"""
         errors = []
@@ -291,6 +294,35 @@ def read_shader_formats_list_from_ini(project_dir: str | None) -> list[str]:
     return sorted(formats, key=_shader_format_priority_sort_key)
 
 
+def read_pso_coverage_map_from_ini(project_dir: str | None) -> str:
+    """从 DefaultGame.ini 读取 PSOCoverageMap 配置的关卡路径
+
+    返回关卡路径（如 /PSOCacheSystem/Maps/PSOCoverageMap），未配置则返回空字符串。
+    """
+    if not project_dir:
+        return ""
+    ini_path = Path(project_dir) / "Config" / "DefaultGame.ini"
+    if not ini_path.exists():
+        return ""
+    try:
+        content = ini_path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+    m_section = re.search(
+        r'\[/Script/PSOCacheSystem\.PSOCacheSettings\](.*?)(?=^\s*\[|\Z)',
+        content, re.DOTALL | re.MULTILINE | re.IGNORECASE
+    )
+    if not m_section:
+        return ""
+    section = m_section.group(1)
+
+    m = re.search(r'^\s*PSOCoverageMap\s*=\s*(\S+)', section, re.MULTILINE)
+    if not m:
+        return ""
+    return m.group(1).strip()
+
+
 # ---- ConfigManager ----
 
 class ConfigManager:
@@ -378,6 +410,7 @@ class ConfigManager:
                 "step9_auto_close_minutes": proj.step9_auto_close_minutes,
                 "step9_logpso": proj.step9_logpso,
                 "step9_clear_driver_cache": proj.step9_clear_driver_cache,
+                "pso_collect_map": proj.pso_collect_map,
             })
 
         return {
@@ -424,6 +457,7 @@ class ConfigManager:
                     proj.step9_auto_close_minutes = data.get("step9_auto_close_minutes", 60)
                     proj.step9_logpso = data.get("step9_logpso", True)
                     proj.step9_clear_driver_cache = data.get("step9_clear_driver_cache", True)
+                    proj.pso_collect_map = data.get("pso_collect_map", "")
                 self.projects.append(proj)
 
         return True

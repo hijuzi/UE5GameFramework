@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
         self._ci_process_tab.log_signal.connect(self._on_log)  # CI 执行日志 → 日志输出 tab
         self._tab_widget.addTab(self._ci_process_tab, "CI流程配置")
 
-        self._workflow_tab = WorkflowTab(self._runner)
+        self._workflow_tab = WorkflowTab(self._runner, build_params_collector=self._build_params_tab.get_build_params)
         self._workflow_tab.log_signal.connect(self._on_log)
         self._workflow_tab.step_status_signal.connect(self._on_step_status)
         self._tab_widget.addTab(self._workflow_tab, "工作流执行")

@@ -101,7 +101,7 @@ void UPSOCacheManager::Initialize(FSubsystemCollectionBase& Collection)
 
 void UPSOCacheManager::HandleAutoStartCoverage()
 {
-	// 延迟到 World 就绪后：先切入 Warmup 地图，再启动覆盖策略
+	// 延迟到 World 就绪后启动覆盖策略（假设已通过启动参数进入 PSOCoverageMap 关卡）
 	FTSTicker::GetCoreTicker().AddTicker(
 		FTickerDelegate::CreateWeakLambda(this, [this](float) -> bool
 		{
@@ -109,24 +109,6 @@ void UPSOCacheManager::HandleAutoStartCoverage()
 			if (!World || !GEngine || !GEngine->GameViewport)
 			{
 				return true; // 继续等待
-			}
-
-			// 检查是否需要切换到 Warmup 地图
-			const UPSOCacheSettings* Settings = GetDefault<UPSOCacheSettings>();
-			if (Settings && Settings->PSOCoverageMap.IsValid())
-			{
-				const FString CurrentMap = World->GetMapName();
-				const FString TargetMap  = FPaths::GetBaseFilename(Settings->PSOCoverageMap.GetAssetPathString());
-				if (!CurrentMap.Equals(TargetMap, ESearchCase::IgnoreCase))
-				{
-					UE_LOG(LogTemp, Log, TEXT("UPSOCacheManager::HandleAutoStartCoverage - Switching to warmup map: %s (current: %s)"), *TargetMap, *CurrentMap);
-
-					// 切换关卡前，移除 GameViewport 上所有 UI Widget
-					GEngine->GameViewport->RemoveAllViewportWidgets();
-
-					UGameplayStatics::OpenLevel(World, FName(*TargetMap));
-					return false; // OpenLevel 触发新 World，新 World 的 Initialize 会重新触发
-				}
 			}
 
 			UE_LOG(LogTemp, Log, TEXT("UPSOCacheManager::HandleAutoStartCoverage - World ready, auto-starting coverage strategy"));

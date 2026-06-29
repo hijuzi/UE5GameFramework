@@ -151,6 +151,9 @@ class StepRunner(QObject):
             return
 
         exe_dir = Path(exe_path).parent
+        # 地图参数：从 UI params 获取（用户可配置）
+        pso_map = self._ui_params.get("pso_collect_map", "")
+
         flags = []
         # 未设置时默认启用（兼容 WorkflowTab 完整工作流不传 UI params 的场景）
         if self._ui_params.get("auto_coverage", True):
@@ -160,13 +163,19 @@ class StepRunner(QObject):
         if self._ui_params.get("clear_driver_cache", True):
             flags.append("-clearPSODriverCache")
 
-        flag_str = " ".join(flags)
-        full_cmd = f'"{exe_path}" {flag_str}'.strip()
+        parts = [f'"{exe_path}"']
+        if pso_map:
+            parts.append(pso_map)
+        if flags:
+            parts.append(" ".join(flags))
+        full_cmd = " ".join(parts).strip()
         self.command_signal.emit(3, full_cmd)
 
         self._log("INFO", f"启动 PSO 收集游戏: {Path(exe_path).name}")
+        if pso_map:
+            self._log("INFO", f"  目标关卡: {pso_map}")
         if flags:
-            self._log("INFO", f"  附加参数: {flag_str}")
+            self._log("INFO", f"  附加参数: {' '.join(flags)}")
         else:
             self._log("WARNING", "  未勾选任何自动参数，游戏将以普通模式启动")
 
@@ -326,19 +335,25 @@ class StepRunner(QObject):
 
         return None
 
-    def _open_exe(self, exe_path: str, extra_flags: Optional[list] = None):
+    def _open_exe(self, exe_path: str, extra_flags: Optional[list] = None, map_name: str = ""):
         """启动打包程序（非阻塞），并保存进程句柄以便后续关闭
         
         Args:
             exe_path: exe 完整路径
             extra_flags: 额外命令行参数列表，如 ['-psosysautocoverage', '-psosysautoquitgame']
+            map_name: 要加载的关卡路径，如 /PSOCacheSystem/Maps/PSOCoverageMap
         """
         # 先关闭之前可能残留的旧进程
         self._terminate_game_process()
 
         flags = extra_flags or []
-        flag_str = " ".join(flags)
-        full_cmd = f'"{exe_path}" {flag_str}'.strip()
+        # 地图参数放在 exe 路径之后、flag 之前
+        parts = [f'"{exe_path}"']
+        if map_name:
+            parts.append(map_name)
+        if flags:
+            parts.append(" ".join(flags))
+        full_cmd = " ".join(parts).strip()
 
         try:
             exe_dir = Path(exe_path).parent
@@ -351,7 +366,7 @@ class StepRunner(QObject):
             )
             self._game_exe_path = exe_path
             if flags:
-                self._log("INFO", f"  附加参数: {flag_str}")
+                self._log("INFO", f"  附加参数: {' '.join(flags)}")
             self._log("SUCCESS", f"已启动打包程序: {Path(exe_path).name}  (PID: {self._game_process.pid})")
             self.step3_game_running_signal.emit(True)
         except Exception as e:
@@ -1532,7 +1547,10 @@ class StepRunner(QObject):
                 pso_flags.append("-psosysautocoverage")
             if self._ui_params.get("auto_quit", True):
                 pso_flags.append("-psosysautoquitgame")
-            self._open_exe(exe_path, extra_flags=pso_flags if pso_flags else None)
+            pso_map = self._ui_params.get("pso_collect_map", "")
+            if not pso_map and self._project:
+                pso_map = self._project.pso_collect_map
+            self._open_exe(exe_path, extra_flags=pso_flags if pso_flags else None, map_name=pso_map)
         else:
             self.step3_exe_found_signal.emit("")
             self._log("WARNING", "未自动找到打包程序，请手动在资源管理器中打开")
@@ -2278,24 +2296,38 @@ class StepRunner(QObject):
         build_config = self._ui_params.get("config") or "Development"
         shader_formats = self._ui_params.get("shader_formats") or get_default_shader_format(self._project.project_dir)
 
-        cmd = (
-            f'"{self._ue5.uat_bat_path}"'
-            f' BuildCookRun'
-            f' -project="{uproject}"'
-            f' -platform={platform}'
-            f' -clientconfig={build_config}'
-            f' -build'
-            f' -cook'
-            f' -stage'
-            f' -pak'
-            f' -archive'
-            f' -archivedirectory="{output_dir}"'
-            f' -unrealexe="{self._ue5.editor_cmd_path}"'
-            f' -utf8output'
-            f' -compile'
-            f' -CrashReporter'
-            f' -ShaderFormats={shader_formats}'
+        # 布尔标志映射：key → UAT flag（仅值为 True 时追加）
+        bool_flags_map = [
+            ("build",           "-build"),
+            ("cook",            "-cook"),
+            ("iterate",         "-iterate"),
+            ("stage",           "-stage"),
+            ("pak",             "-pak"),
+            ("archive",         "-archive"),
+            ("utf8_output",     "-utf8output"),
+            ("compile",         "-compile"),
+            ("crash_reporter",  "-CrashReporter"),
+        ]
+        # 布尔标志的兜底默认值：全部默认 True（匹配原硬编码行为）
+        # 原因：_ui_params 未设置时（如从工作流标签页运行），需要合理的默认行为
+        _DEFAULT_TRUE_BOOLS = {"build", "cook", "iterate", "stage", "pak", "archive", "utf8_output", "compile", "crash_reporter"}
+        bool_flags = " ".join(
+            flag for key, flag in bool_flags_map
+            if self._ui_params.get(key, key in _DEFAULT_TRUE_BOOLS)
         )
+
+        cmd_parts = [
+            f'"{self._ue5.uat_bat_path}" BuildCookRun',
+            f'-project="{uproject}"',
+            f'-platform={platform}',
+            f'-clientconfig={build_config}',
+            f'-archivedirectory="{output_dir}"',
+            f'-unrealexe="{self._ue5.editor_cmd_path}"',
+            f'-ShaderFormats={shader_formats}',
+        ]
+        if bool_flags:
+            cmd_parts.append(bool_flags)
+        cmd = " ".join(cmd_parts)
 
         # 发出指令到日志归档面板
         if step_index >= 0:

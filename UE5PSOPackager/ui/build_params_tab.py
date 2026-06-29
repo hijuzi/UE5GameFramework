@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QWheelEvent
 
-from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig, read_shader_formats_list_from_ini, get_default_shader_format
+from config_manager import ConfigManager, ProjectConfig, UE5VersionConfig, read_shader_formats_list_from_ini, get_default_shader_format, read_pso_coverage_map_from_ini
 from step_runner import StepRunner
 
 
@@ -433,6 +433,7 @@ class BuildParamsTab(QWidget):
 
         defaults = {
             "game_exe": exe_path,
+            "pso_collect_map": proj.pso_collect_map or read_pso_coverage_map_from_ini(proj.project_dir),
             "auto_coverage": True,
             "auto_quit": True,
             "clear_driver_cache": True,
@@ -477,6 +478,7 @@ class BuildParamsTab(QWidget):
             "shader_formats": default_sf,
             "unreal_exe":    ue.editor_cmd_path or "",
             "compile":       True, "build": True, "cook": True,
+            "iterate":       True,
             "stage":         True, "pak": True, "archive": True,
             "crash_reporter": True, "utf8_output": True,
         }
@@ -552,6 +554,16 @@ class BuildParamsTab(QWidget):
                 params[key] = value_widget.text()
         return params
 
+    def get_build_params(self) -> dict:
+        """公开方法：返回当前最终打包/首次打包 参数行中的全部值
+        供 WorkflowTab 在运行全部步骤前调用，确保 UAT 参数来自当前 UI 状态
+        """
+        if self._final_build_rows:
+            return self._collect_ui_params(self._final_build_rows)
+        if self._first_build_rows:
+            return self._collect_ui_params(self._first_build_rows)
+        return {}
+
     def _on_run_first_build(self):
         self._start_run(_STEP_FIRST_BUILD)
 
@@ -566,7 +578,10 @@ class BuildParamsTab(QWidget):
             return
         self._runner.set_project(self._current_project_index)
         # 收集 UI 参数传给 runner
-        self._runner.set_ui_params(self._collect_ui_params(self._pso_collect_rows))
+        ui_params = self._collect_ui_params(self._pso_collect_rows)
+        self._runner.set_ui_params(ui_params)
+        # 持久化 PSO 收集地图到项目配置
+        proj.pso_collect_map = ui_params.get("pso_collect_map", "")
 
         # 清空日志窗口并显示步骤头
         self._log_output.clear()
