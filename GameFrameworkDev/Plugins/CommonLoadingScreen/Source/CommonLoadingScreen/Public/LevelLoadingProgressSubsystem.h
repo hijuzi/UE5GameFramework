@@ -25,7 +25,7 @@ struct FWorldContext;
  *     └── [Finalizing]    收尾等待 / 最小显示时长 —— 95% ~ 100%
  */
 UENUM(BlueprintType)
-enum class ELevelLoadingPhase : uint8
+enum class ECommonLevelLoadingPhase : uint8
 {
 	None            UMETA(DisplayName = "无"),
 	Preparing       UMETA(DisplayName = "准备中"),       // PreLoadMap 后，卸载旧关卡
@@ -68,7 +68,7 @@ public:
 
 	/** 获取当前加载阶段（UI 可据此切换提示文案） */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Loading|Progress")
-	ELevelLoadingPhase GetCurrentLoadingPhase() const;
+	ECommonLevelLoadingPhase GetCurrentLoadingPhase() const;
 
 	/** 引擎原生异步加载进度（-1 = 已完成 / 未开始） */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Loading|Progress")
@@ -108,7 +108,7 @@ private:
 	// Phase Management
 	// ================================================================
 
-	void SetLoadingPhase(ELevelLoadingPhase NewPhase);
+	void SetLoadingPhase(ECommonLevelLoadingPhase NewPhase);
 	float CalculatePhaseProgress() const;
 
 	/** Ticker 回调：自动切换阶段并缓存最新进度 */
@@ -126,7 +126,7 @@ private:
 	// ================================================================
 
 	/** 当前加载阶段 */
-	ELevelLoadingPhase CurrentLoadingPhase = ELevelLoadingPhase::None;
+	ECommonLevelLoadingPhase CurrentLoadingPhase = ECommonLevelLoadingPhase::None;
 
 	/** 阶段切换时间戳 */
 	double PhaseStartTime = 0.0;

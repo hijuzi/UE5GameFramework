@@ -88,7 +88,7 @@ void ULoadingProgressUserWidget::PrepareUnloadAnimation()
 
 void ULoadingProgressUserWidget::ApplyContentTypeVisibility()
 {
-	if (LoadingScreenContentType == ELoadingScreenContentType::Image)
+	if (LoadingScreenContentType == ECommonLoadingScreenContentType::Image)
 	{
 		UE_LOG(LogLoadingScreen, Log, TEXT("[LoadProgress] ContentType=Image, show ProgressOverlay, hide VideoCanvas"));
 		// Image 类型：显示进度层，隐藏视频层
@@ -101,7 +101,7 @@ void ULoadingProgressUserWidget::ApplyContentTypeVisibility()
 			VideoCanvas->SetVisibility(EVisibility::Collapsed);
 		}
 	}
-	else if (LoadingScreenContentType == ELoadingScreenContentType::Video)
+	else if (LoadingScreenContentType == ECommonLoadingScreenContentType::Video)
 	{
 		UE_LOG(LogLoadingScreen, Log, TEXT("[LoadProgress] ContentType=Video, hide ProgressOverlay, show VideoCanvas"));
 		// Video 类型：隐藏进度层，显示视频层
@@ -118,7 +118,7 @@ void ULoadingProgressUserWidget::ApplyContentTypeVisibility()
 
 void ULoadingProgressUserWidget::LoadBackgroundImage()
 {
-	if (LoadingScreenContentType != ELoadingScreenContentType::Image)
+	if (LoadingScreenContentType != ECommonLoadingScreenContentType::Image)
 	{
 		return;
 	}
@@ -147,7 +147,7 @@ void ULoadingProgressUserWidget::LoadBackgroundImage()
 
 void ULoadingProgressUserWidget::PlayLoadingVideo()
 {
-	if (LoadingScreenContentType != ELoadingScreenContentType::Video)
+	if (LoadingScreenContentType != ECommonLoadingScreenContentType::Video)
 	{
 		return;
 	}
@@ -205,8 +205,8 @@ void ULoadingProgressUserWidget::ResolveLoadingScreenConfig()
 	{
 		LoadingScreenLoadDuration          = Override.LoadDuration;
 		LoadingScreenUnloadDuration        = Override.UnloadDuration;
-		LoadingScreenAnimationType         = static_cast<ELoadingAnimationType>(Override.AnimationType);
-		LoadingScreenAnimationMode         = static_cast<ELoadingAnimationMode>(Override.AnimationMode);
+		LoadingScreenAnimationType         = static_cast<ECommonLoadingAnimationType>(Override.AnimationType);
+		LoadingScreenAnimationMode         = static_cast<ECommonLoadingAnimationMode>(Override.AnimationMode);
 		MinimumLoadingScreenDisplayTimeSecs = Override.MinimumLoadingScreenDisplayTime;
 	}
 	else
@@ -221,7 +221,7 @@ void ULoadingProgressUserWidget::ResolveLoadingScreenConfig()
 	// --- Content 参数 ---
 	if (Override.bOverrideContent)
 	{
-		LoadingScreenContentType     = static_cast<ELoadingScreenContentType>(Override.ContentType);
+		LoadingScreenContentType     = static_cast<ECommonLoadingScreenContentType>(Override.ContentType);
 		LoadingScreenImageBackground = Override.ImageBackground;
 		LoadingScreenVideoPath       = Override.VideoPath;
 	}
@@ -382,7 +382,7 @@ void ULoadingProgressUserWidget::TickProgressUpdate(float InDeltaTime)
 
 void ULoadingProgressUserWidget::CustomTick(float InDeltaTime)
 {
-	if (LoadingScreenContentType == ELoadingScreenContentType::Image)
+	if (LoadingScreenContentType == ECommonLoadingScreenContentType::Image)
 	{
 		TickProgressUpdate(InDeltaTime);
 	}
@@ -473,7 +473,7 @@ void ULoadingProgressUserWidget::PlayUnloadAnimation_Implementation()
 
 void ULoadingProgressUserWidget::PlayLoadAnimation_Implementation()
 {
-	if (LoadingScreenContentType == ELoadingScreenContentType::Video)
+	if (LoadingScreenContentType == ECommonLoadingScreenContentType::Video)
 	{
 		PrepareUnloadAnimation();
 		GetMoviePlayer()->PlayMovie();
@@ -527,7 +527,7 @@ void ULoadingProgressUserWidget::OnLoadAnimationFinished_Implementation()
 	{
 		MaskOverlay->SetRenderOpacity(0.0f);
 	}
-	if (LoadingScreenContentType == ELoadingScreenContentType::Video)
+	if (LoadingScreenContentType == ECommonLoadingScreenContentType::Video)
 	{
 		GetMoviePlayer()->PlayMovie();
 	}

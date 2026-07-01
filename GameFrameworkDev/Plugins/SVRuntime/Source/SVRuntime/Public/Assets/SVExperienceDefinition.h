@@ -61,11 +61,11 @@ public:
 
 	/** 覆盖加载界面动画过渡类型 */
 	UPROPERTY(EditAnywhere, Category = "Loading Screen|Timing", meta = (EditCondition = "bOverrideLoadingScreenTiming"))
-	ELoadingAnimationType LoadingScreenAnimationTypeOverride = ELoadingAnimationType::Opacity;
+	ECommonLoadingAnimationType LoadingScreenAnimationTypeOverride = ECommonLoadingAnimationType::Opacity;
 
 	/** 覆盖加载界面动画插值模式 */
 	UPROPERTY(EditAnywhere, Category = "Loading Screen|Timing", meta = (EditCondition = "bOverrideLoadingScreenTiming"))
-	ELoadingAnimationMode LoadingScreenAnimationModeOverride = ELoadingAnimationMode::Linear;
+	ECommonLoadingAnimationMode LoadingScreenAnimationModeOverride = ECommonLoadingAnimationMode::Linear;
 
 	/** 覆盖加载界面的内容参数（启用后下方 Content 参数生效） */
 	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content")
@@ -73,14 +73,14 @@ public:
 
 	/** 覆盖加载界面内容类型 */
 	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (EditCondition = "bOverrideLoadingScreenContent"))
-	ELoadingScreenContentType LoadingScreenContentTypeOverride = ELoadingScreenContentType::Image;
+	ECommonLoadingScreenContentType LoadingScreenContentTypeOverride = ECommonLoadingScreenContentType::Image;
 
 	/** 覆盖图片背景资产（ContentType 为 Image 时生效） */
-	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (MetaClass = "/Script/Engine.Texture2D", EditCondition = "bOverrideLoadingScreenContent && LoadingScreenContentTypeOverride == ELoadingScreenContentType::Image"))
+	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (MetaClass = "/Script/Engine.Texture2D", EditCondition = "bOverrideLoadingScreenContent && LoadingScreenContentTypeOverride == ECommonLoadingScreenContentType::Image"))
 	FSoftObjectPath LoadingScreenImageBackgroundOverride;
 
 	/** 覆盖视频路径（ContentType 为 Video 时生效） */
-	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (EditCondition = "bOverrideLoadingScreenContent && LoadingScreenContentTypeOverride == ELoadingScreenContentType::Video"))
+	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (EditCondition = "bOverrideLoadingScreenContent && LoadingScreenContentTypeOverride == ECommonLoadingScreenContentType::Video"))
 	FString LoadingScreenVideoPathOverride;
 
 	/** 覆盖黑屏的时间参数（启用后下方 Duration 参数生效） */
@@ -97,11 +97,11 @@ public:
 
 	/** 覆盖黑屏动画过渡类型 */
 	UPROPERTY(EditAnywhere, Category = "Black Screen|Timing", meta = (EditCondition = "bOverrideBlackScreenTiming"))
-	ELoadingAnimationType BlackScreenAnimationTypeOverride = ELoadingAnimationType::Opacity;
+	ECommonLoadingAnimationType BlackScreenAnimationTypeOverride = ECommonLoadingAnimationType::Opacity;
 
 	/** 覆盖黑屏动画插值模式 */
 	UPROPERTY(EditAnywhere, Category = "Black Screen|Timing", meta = (EditCondition = "bOverrideBlackScreenTiming"))
-	ELoadingAnimationMode BlackScreenAnimationModeOverride = ELoadingAnimationMode::Linear;
+	ECommonLoadingAnimationMode BlackScreenAnimationModeOverride = ECommonLoadingAnimationMode::Linear;
 };
 
 /**

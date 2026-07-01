@@ -10,7 +10,7 @@
 #include "Engine/Engine.h"
 #include "GameFramework/GameStateBase.h"
 #include "Misc/CommandLine.h"
-#include "Misc/PreLoadScreenManager.h"
+#include "PreLoadScreenManager.h"
 #include "Blueprint/UserWidget.h"
 
 #include "Framework/Application/IInputProcessor.h"

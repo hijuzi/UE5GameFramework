@@ -11,9 +11,9 @@
 #define UE_API COMMONLOADINGSCREEN_API
 
 // 前向声明，避免循环依赖
-enum class ELoadingAnimationType : uint8;
-enum class ELoadingAnimationMode : uint8;
-enum class ELoadingScreenContentType : uint8;
+enum class ECommonLoadingAnimationType : uint8;
+enum class ECommonLoadingAnimationMode : uint8;
+enum class ECommonLoadingScreenContentType : uint8;
 
 /**
  * 加载界面覆盖参数结构体，由实现了 ILoadingProcessInterface 的组件提供，

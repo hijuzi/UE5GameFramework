@@ -136,14 +136,14 @@ private:
 	float LoadingScreenUnloadDuration = 0.2f;
 
 	/** 加载界面动画过渡类型 */
-	ELoadingAnimationType LoadingScreenAnimationType = ELoadingAnimationType::Opacity;
+	ECommonLoadingAnimationType LoadingScreenAnimationType = ECommonLoadingAnimationType::Opacity;
 
 	/** 加载界面动画插值模式 */
-	ELoadingAnimationMode LoadingScreenAnimationMode = ELoadingAnimationMode::Linear;
+	ECommonLoadingAnimationMode LoadingScreenAnimationMode = ECommonLoadingAnimationMode::Linear;
 
 	/** 加载界面内容类型（图片/视频），蓝图可读写 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Loading Progress", meta = (AllowPrivateAccess = "true"))
-	ELoadingScreenContentType LoadingScreenContentType = ELoadingScreenContentType::Image;
+	ECommonLoadingScreenContentType LoadingScreenContentType = ECommonLoadingScreenContentType::Image;
 
 	/** 图片背景路径 */
 	FSoftObjectPath LoadingScreenImageBackground;

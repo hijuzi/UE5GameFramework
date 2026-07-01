@@ -66,7 +66,7 @@ float ULevelLoadingProgressSubsystem::GetPreciseLoadingProgress() const
 	return CachedProgress;
 }
 
-ELevelLoadingPhase ULevelLoadingProgressSubsystem::GetCurrentLoadingPhase() const
+ECommonLevelLoadingPhase ULevelLoadingProgressSubsystem::GetCurrentLoadingPhase() const
 {
 	return CurrentLoadingPhase;
 }
@@ -79,33 +79,33 @@ float ULevelLoadingProgressSubsystem::GetRawAsyncLoadPercentage() const
 bool ULevelLoadingProgressSubsystem::IsLoadingInProgress() const
 {
 	return bCurrentlyInLoadMap &&
-		CurrentLoadingPhase != ELevelLoadingPhase::None &&
-		CurrentLoadingPhase != ELevelLoadingPhase::Completed;
+		CurrentLoadingPhase != ECommonLevelLoadingPhase::None &&
+		CurrentLoadingPhase != ECommonLevelLoadingPhase::Completed;
 }
 
 // ================================================================
 // Phase Management
 // ================================================================
 
-void ULevelLoadingProgressSubsystem::SetLoadingPhase(ELevelLoadingPhase NewPhase)
+void ULevelLoadingProgressSubsystem::SetLoadingPhase(ECommonLevelLoadingPhase NewPhase)
 {
 	if (CurrentLoadingPhase == NewPhase)
 	{
 		return;
 	}
 
-	const ELevelLoadingPhase OldPhase = CurrentLoadingPhase;
+	const ECommonLevelLoadingPhase OldPhase = CurrentLoadingPhase;
 	CurrentLoadingPhase = NewPhase;
 	PhaseStartTime = FPlatformTime::Seconds();
 
 	// 进入 WorldInit 时暂停世界，进入 Completed 时恢复
 	if (UWorld* World = GetWorld())
 	{
-		if (NewPhase == ELevelLoadingPhase::WorldInit)
+		if (NewPhase == ECommonLevelLoadingPhase::WorldInit)
 		{
 			UGameplayStatics::SetGamePaused(World, true);
 		}
-		else if (NewPhase == ELevelLoadingPhase::Completed)
+		else if (NewPhase == ECommonLevelLoadingPhase::Completed)
 		{
 			UGameplayStatics::SetGamePaused(World, false);
 		}
@@ -122,41 +122,41 @@ void ULevelLoadingProgressSubsystem::TickProgress()
 	// 阶段自动推进
 	switch (CurrentLoadingPhase)
 	{
-	case ELevelLoadingPhase::Preparing:
+	case ECommonLevelLoadingPhase::Preparing:
 	{
 		// Preparing → AsyncLoading：引擎开始异步加载时自动切换
 		if (GetAsyncLoadPercentage(NAME_None) >= 0.0f)
 		{
-			SetLoadingPhase(ELevelLoadingPhase::AsyncLoading);
+			SetLoadingPhase(ECommonLevelLoadingPhase::AsyncLoading);
 		}
 		break;
 	}
-	case ELevelLoadingPhase::AsyncLoading:
+	case ECommonLevelLoadingPhase::AsyncLoading:
 	{
 		// 由 CalculatePhaseProgress 通过引擎真实进度驱动
 		// 阶段切换由 HandlePostLoadMap 负责
 		break;
 	}
-	case ELevelLoadingPhase::WorldInit:
+	case ECommonLevelLoadingPhase::WorldInit:
 	{
 		// WorldInit → Finalizing：超过最小显示时长后自动收尾
 		if (Elapsed >= MinimumLoadingScreenDisplayTimeSecs)
 		{
-			SetLoadingPhase(ELevelLoadingPhase::Finalizing);
+			SetLoadingPhase(ECommonLevelLoadingPhase::Finalizing);
 		}
 		break;
 	}
-	case ELevelLoadingPhase::Finalizing:
+	case ECommonLevelLoadingPhase::Finalizing:
 	{
 		// Finalizing → Completed：短暂收尾后标记完成
 		if (Elapsed >= 0.3)
 		{
-			SetLoadingPhase(ELevelLoadingPhase::Completed);
+			SetLoadingPhase(ECommonLevelLoadingPhase::Completed);
 			bCurrentlyInLoadMap = false;
 		}
 		break;
 	}
-	case ELevelLoadingPhase::Completed:
+	case ECommonLevelLoadingPhase::Completed:
 	{
 		CachedProgress = 100.0f;
 
@@ -189,14 +189,14 @@ float ULevelLoadingProgressSubsystem::CalculatePhaseProgress() const
 
 	switch (CurrentLoadingPhase)
 	{
-	case ELevelLoadingPhase::Preparing:
+	case ECommonLevelLoadingPhase::Preparing:
 	{
 		// 准备阶段极短，用时间基线估算 0 -> PreparingWeight
 		const float Ratio = FMath::Clamp(static_cast<float>(Elapsed / 0.5), 0.0f, 1.0f);
 		return Ratio * PreparingWeight;
 	}
 
-	case ELevelLoadingPhase::AsyncLoading:
+	case ECommonLevelLoadingPhase::AsyncLoading:
 	{
 		// 核心阶段：使用引擎 GetAsyncLoadPercentage 真实进度
 		const float Raw = GetAsyncLoadPercentage(NAME_None);
@@ -207,7 +207,7 @@ float ULevelLoadingProgressSubsystem::CalculatePhaseProgress() const
 		return PreparingWeight + (Raw / 100.0f) * AsyncLoadWeight;
 	}
 
-	case ELevelLoadingPhase::WorldInit:
+	case ECommonLevelLoadingPhase::WorldInit:
 	{
 		// 引擎无进度回调，用时间平滑估算
 		// EaseOut 曲线 (1 - (1-t)^2)：前快后慢，保证进度始终增长
@@ -216,7 +216,7 @@ float ULevelLoadingProgressSubsystem::CalculatePhaseProgress() const
 		return PreparingWeight + AsyncLoadWeight + Smoothed * WorldInitWeight;
 	}
 
-	case ELevelLoadingPhase::Finalizing:
+	case ECommonLevelLoadingPhase::Finalizing:
 	{
 		// 收尾阶段：平滑接近 100%
 		const float Ratio = FMath::Clamp(static_cast<float>(Elapsed / 0.3), 0.0f, 1.0f);
@@ -246,7 +246,7 @@ void ULevelLoadingProgressSubsystem::HandlePreLoadMap(const FWorldContext& World
 	LoadingStartTime = FPlatformTime::Seconds();
 
 	// 进入准备阶段
-	SetLoadingPhase(ELevelLoadingPhase::Preparing);
+	SetLoadingPhase(ECommonLevelLoadingPhase::Preparing);
 
 	// 启动 Ticker 驱动内部进度计算（不广播）
 	if (ProgressTickerHandle.IsValid())
@@ -272,7 +272,7 @@ void ULevelLoadingProgressSubsystem::HandlePostLoadMap(UWorld* LoadedWorld)
 	UE_LOG(LogLevelLoadingProgress, Log, TEXT("HandlePostLoadMap: World=[%s]"), *GetNameSafe(LoadedWorld));
 
 	// 进入世界初始化阶段
-	SetLoadingPhase(ELevelLoadingPhase::WorldInit);
+	SetLoadingPhase(ECommonLevelLoadingPhase::WorldInit);
 
 	UE_LOG(LogLevelLoadingProgress, Log, TEXT("HandlePostLoadMap 完成"));
 }

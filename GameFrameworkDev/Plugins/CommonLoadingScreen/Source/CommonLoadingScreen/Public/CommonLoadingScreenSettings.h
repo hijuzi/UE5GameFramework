@@ -24,7 +24,7 @@ enum class EFadeEasing : uint8
  * 加载动画过渡类型，决定加载界面和黑屏的显示/隐藏方式。
  */
 UENUM(BlueprintType)
-enum class ELoadingAnimationType : uint8
+enum class ECommonLoadingAnimationType : uint8
 {
 	Opacity		UMETA(DisplayName = "改变透明度"),
 	Translation	UMETA(DisplayName = "移动位置"),
@@ -35,7 +35,7 @@ enum class ELoadingAnimationType : uint8
  * 加载动画插值模式，控制动画曲线。
  */
 UENUM(BlueprintType)
-enum class ELoadingAnimationMode : uint8
+enum class ECommonLoadingAnimationMode : uint8
 {
 	Linear		UMETA(DisplayName = "线性"),
 	Sine		UMETA(DisplayName = "正弦"),
@@ -47,7 +47,7 @@ enum class ELoadingAnimationMode : uint8
  * 加载界面内容类型，决定加载界面显示的背景内容。
  */
 UENUM(BlueprintType)
-enum class ELoadingScreenContentType : uint8
+enum class ECommonLoadingScreenContentType : uint8
 {
 	Image		UMETA(DisplayName = "图片背景"),
 	Video		UMETA(DisplayName = "视频"),
@@ -87,15 +87,15 @@ public:
 
 	// 加载界面动画过渡类型
 	UPROPERTY(config, EditAnywhere, Category=Loading)
-	ELoadingAnimationType LoadingScreenAnimationType = ELoadingAnimationType::Opacity;
+	ECommonLoadingAnimationType LoadingScreenAnimationType = ECommonLoadingAnimationType::Opacity;
 
 	// 加载界面动画插值模式
 	UPROPERTY(config, EditAnywhere, Category=Loading)
-	ELoadingAnimationMode LoadingScreenAnimationMode = ELoadingAnimationMode::Linear;
+	ECommonLoadingAnimationMode LoadingScreenAnimationMode = ECommonLoadingAnimationMode::Linear;
 
 	// 加载界面内容类型
 	UPROPERTY(config, EditAnywhere, Category=Loading)
-	ELoadingScreenContentType LoadingScreenContentType = ELoadingScreenContentType::Image;
+	ECommonLoadingScreenContentType LoadingScreenContentType = ECommonLoadingScreenContentType::Image;
 
 	// 图片背景资产（ContentType 为 Image 时生效）
 	UPROPERTY(config, EditAnywhere, Category=Loading, meta=(MetaClass="/Script/Engine.Texture2D"))
@@ -168,11 +168,11 @@ public:
 
 	// 黑屏动画过渡类型
 	UPROPERTY(config, EditAnywhere, Category=BlackScreen)
-	ELoadingAnimationType BlackScreenAnimationType = ELoadingAnimationType::Opacity;
+	ECommonLoadingAnimationType BlackScreenAnimationType = ECommonLoadingAnimationType::Opacity;
 
 	// 黑屏动画插值模式
 	UPROPERTY(config, EditAnywhere, Category=BlackScreen)
-	ELoadingAnimationMode BlackScreenAnimationMode = ELoadingAnimationMode::Linear;
+	ECommonLoadingAnimationMode BlackScreenAnimationMode = ECommonLoadingAnimationMode::Linear;
 
 	// 黑屏消失后额外保持的时长（秒），以便给纹理流式加载留出时间，避免画面模糊
 	UPROPERTY(config, EditAnywhere, Category=BlackScreen, meta=(ForceUnits=s))
