@@ -13,6 +13,7 @@ class FSubsystemCollectionBase;
 class IInputProcessor;
 class IBlackLoadingProcessInterface;
 class SWidget;
+class UBlackLoadingScreenWidget;
 class UObject;
 class UWorld;
 struct FFrame;
@@ -40,6 +41,9 @@ public:
 	{
 		return bCurrentlyShowingBlackLoadingScreen;
 	}
+
+	/** 黑屏加载界面是否正在播放动画 */
+	bool IsBlackLoadingScreenAnimationPlaying() const;
 
 	/** 注册外部黑屏加载处理器 */
 	void RegisterBlackLoadingProcessor(TScriptInterface<IBlackLoadingProcessInterface> Interface);
@@ -69,6 +73,9 @@ private:
 	/** 隐藏黑屏加载界面 */
 	void HideBlackLoadingScreen();
 
+	/** 完成黑屏加载界面的最终清理（动画驱动的卸载流程完成后调用） */
+	void FinishBlackLoadingScreenCleanup();
+
 	/** 从视口移除 Widget */
 	void RemoveBlackLoadingScreenWidgetFromViewport();
 
@@ -78,8 +85,19 @@ private:
 	/** 恢复输入 */
 	void StopBlockingInput();
 
+	/** 加载动画完成回调 */
+	UFUNCTION()
+	void HandleLoadingScreenLoadAnimationCompleted();
+
+	/** 卸载动画完成回调 */
+	UFUNCTION()
+	void HandleLoadingScreenUnloadAnimationCompleted();
+
 private:
-	/** 当前显示的加载界面 Widget */
+	/** 当前显示的加载界面 Widget 实例 */
+	TObjectPtr<UBlackLoadingScreenWidget> BlackLoadingScreenUserWidgetPtr;
+
+	/** 当前显示的加载界面 SWidget */
 	TSharedPtr<SWidget> BlackLoadingScreenWidget;
 
 	/** 输入拦截器 */
@@ -99,13 +117,4 @@ private:
 
 	/** 加载界面显示的时间戳 */
 	double TimeBlackLoadingScreenShown = 0.0;
-
-	/** 距离下一次日志心跳的剩余秒数 */
-	float TimeUntilNextLogHeartbeatSeconds = 0.0f;
-
-	/** 分屏模式下是否缺少本地 PlayerController */
-	bool bMissingAnyLocalPC = false;
-
-	/** 是否找到了任何本地 PlayerController */
-	bool bFoundAnyLocalPC = false;
 };

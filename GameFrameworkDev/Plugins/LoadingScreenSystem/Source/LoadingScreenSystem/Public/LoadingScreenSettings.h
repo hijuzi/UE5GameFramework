@@ -4,10 +4,41 @@
 
 #include "Engine/DeveloperSettingsBackedByCVars.h"
 #include "UObject/SoftObjectPath.h"
+#include "Framework/Application/IInputProcessor.h"
 
 #include "LoadingScreenSettings.generated.h"
 
 class UObject;
+
+/**
+ * 输入拦截器：加载界面显示期间吃掉所有输入。
+ * 可供黑屏加载界面和关卡加载界面公用。
+ */
+class FLoadingScreenInputPreProcessor : public IInputProcessor
+{
+public:
+	FLoadingScreenInputPreProcessor() {}
+	virtual ~FLoadingScreenInputPreProcessor() {}
+
+	bool CanEatInput() const
+	{
+		return !GIsEditor;
+	}
+
+	//~ IInputProcessor interface
+	virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override {}
+
+	virtual bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override { return CanEatInput(); }
+	virtual bool HandleKeyUpEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override { return CanEatInput(); }
+	virtual bool HandleAnalogInputEvent(FSlateApplication& SlateApp, const FAnalogInputEvent& InAnalogInputEvent) override { return CanEatInput(); }
+	virtual bool HandleMouseMoveEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override { return CanEatInput(); }
+	virtual bool HandleMouseButtonDownEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override { return CanEatInput(); }
+	virtual bool HandleMouseButtonUpEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override { return CanEatInput(); }
+	virtual bool HandleMouseButtonDoubleClickEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override { return CanEatInput(); }
+	virtual bool HandleMouseWheelOrGestureEvent(FSlateApplication& SlateApp, const FPointerEvent& InWheelEvent, const FPointerEvent* InGestureEvent) override { return CanEatInput(); }
+	virtual bool HandleMotionDetectedEvent(FSlateApplication& SlateApp, const FMotionEvent& MotionEvent) override { return CanEatInput(); }
+	//~ End of IInputProcessor interface
+};
 
 /**
  * 关卡加载动画过渡类型，决定关卡加载界面的显示/隐藏方式。
@@ -58,8 +89,8 @@ public:
 	// 关卡加载界面
 	//~=========================================================================
 
-	// 关卡加载界面所使用的控件，必须派生自 ULoadingScreenWidget。
-	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen, meta=(MetaClass="/Script/LoadingScreenSystem.LoadingScreenWidget"))
+	// 关卡加载界面所使用的控件，必须派生自 ULevelLoadingScreenWidget。
+	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen, meta=(MetaClass="/Script/LoadingScreenSystem.LevelLoadingScreenWidget"))
 	FSoftClassPath LevelLoadingScreenWidget;
 
 	// 关卡加载界面控件在视口堆栈中的 Z 顺序
@@ -97,7 +128,7 @@ public:
 	//
 	// 注意：在编辑器中通常不应用此延迟，以加快迭代速度，但可以通过
 	// HoldLevelLoadingScreenAdditionalSecsEvenInEditor 启用
-	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen, meta=(ForceUnits=s, ConsoleVariable="CommonLoadingScreen.HoldLoadingScreenAdditionalSecs"))
+	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen, meta=(ForceUnits=s))
 	float HoldLevelLoadingScreenAdditionalSecs = 2.0f;
 
 	// 即使在编辑器中也应用额外的 HoldLevelLoadingScreenAdditionalSecs 延迟
@@ -117,11 +148,6 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen)
 	double LevelLoadingScreenHangDurationMultiplier = 1.0;
 
-	// 即使在编辑器中也强制 Tick 关卡加载界面
-	// （在迭代关卡加载界面时有用）
-	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen)
-	bool ForceTickLevelLoadingScreenEvenInEditor = true;
-
 	// 关卡加载界面白名单检测帧数，每隔 N 帧检查一次是否需要隐藏关卡加载界面
 	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen, meta=(ClampMin=1, ClampMax=100))
 	int32 LevelLoadingScreenWhitelistCheckFrames = 10;
@@ -131,7 +157,7 @@ public:
 	//~=========================================================================
 
 	// 黑屏加载界面所使用的控件（系统级回退，在引擎过渡期间显示）。
-	UPROPERTY(config, EditAnywhere, Category=BlackLoadingScreen)
+	UPROPERTY(config, EditAnywhere, Category=BlackLoadingScreen, meta=(MetaClass="/Script/LoadingScreenSystem.BlackLoadingScreenWidget"))
 	FSoftClassPath BlackLoadingScreenWidget;
 
 	// 黑屏加载界面控件在视口堆栈中的 Z 顺序（游戏中最高层级，默认高于关卡加载界面）
@@ -176,5 +202,10 @@ public:
 
 	// 为 true 时，每帧都会将关卡加载界面与黑屏加载界面的显示/隐藏原因输出到日志。
 	UPROPERTY(config, EditAnywhere, Category=Debug)
-	bool bLogLevelLoadingScreenReasonEveryFrame = false;
+	bool bLogLoadingScreenReasonEveryFrame = false;
+
+	// 即使在编辑器中也强制 Tick 关卡加载界面
+	// （在迭代关卡加载界面时有用）
+	UPROPERTY(config, EditAnywhere, Category=Debug)
+	bool ForceTickLoadingScreenEvenInEditor = true;
 };

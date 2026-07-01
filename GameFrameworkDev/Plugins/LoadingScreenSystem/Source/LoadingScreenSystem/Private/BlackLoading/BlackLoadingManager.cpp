@@ -24,64 +24,6 @@ DEFINE_LOG_CATEGORY(LogBlackLoading);
 // Profiling category
 CSV_DEFINE_CATEGORY(BlackLoadingScreen, true);
 
-//////////////////////////////////////////////////////////////////////
-
-namespace BlackLoadingCVars
-{
-	static float HoldLoadingScreenAdditionalSecs = 2.0f;
-	static FAutoConsoleVariableRef CVarHoldLoadingScreenUpAtLeastThisLongInSecs(
-		TEXT("BlackLoading.HoldLoadingScreenAdditionalSecs"),
-		HoldLoadingScreenAdditionalSecs,
-		TEXT("How long to hold the loading screen up after other loading finishes (in seconds) to try to give texture streaming a chance to avoid blurriness"),
-		ECVF_Default | ECVF_Preview);
-
-	static bool LogLoadingScreenReasonEveryFrame = false;
-	static FAutoConsoleVariableRef CVarLogLoadingScreenReasonEveryFrame(
-		TEXT("BlackLoading.LogLoadingScreenReasonEveryFrame"),
-		LogLoadingScreenReasonEveryFrame,
-		TEXT("When true, the reason the loading screen is shown or hidden will be printed to the log every frame."),
-		ECVF_Default);
-
-	static bool ForceLoadingScreenVisible = false;
-	static FAutoConsoleVariableRef CVarForceLoadingScreenVisible(
-		TEXT("BlackLoading.AlwaysShow"),
-		ForceLoadingScreenVisible,
-		TEXT("Force the loading screen to show."),
-		ECVF_Default);
-}
-
-//////////////////////////////////////////////////////////////////////
-// FBlackLoadingScreenInputPreProcessor
-
-// 输入拦截器：加载界面显示期间吃掉所有输入
-class FBlackLoadingScreenInputPreProcessor : public IInputProcessor
-{
-public:
-	FBlackLoadingScreenInputPreProcessor() {}
-	virtual ~FBlackLoadingScreenInputPreProcessor() {}
-
-	bool CanEatInput() const
-	{
-		return !GIsEditor;
-	}
-
-	//~ IInputProcessor interface
-	virtual void Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor> Cursor) override {}
-
-	virtual bool HandleKeyDownEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override { return CanEatInput(); }
-	virtual bool HandleKeyUpEvent(FSlateApplication& SlateApp, const FKeyEvent& InKeyEvent) override { return CanEatInput(); }
-	virtual bool HandleAnalogInputEvent(FSlateApplication& SlateApp, const FAnalogInputEvent& InAnalogInputEvent) override { return CanEatInput(); }
-	virtual bool HandleMouseMoveEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override { return CanEatInput(); }
-	virtual bool HandleMouseButtonDownEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override { return CanEatInput(); }
-	virtual bool HandleMouseButtonUpEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override { return CanEatInput(); }
-	virtual bool HandleMouseButtonDoubleClickEvent(FSlateApplication& SlateApp, const FPointerEvent& MouseEvent) override { return CanEatInput(); }
-	virtual bool HandleMouseWheelOrGestureEvent(FSlateApplication& SlateApp, const FPointerEvent& InWheelEvent, const FPointerEvent* InGestureEvent) override { return CanEatInput(); }
-	virtual bool HandleMotionDetectedEvent(FSlateApplication& SlateApp, const FMotionEvent& MotionEvent) override { return CanEatInput(); }
-	//~ End of IInputProcessor interface
-};
-
-//////////////////////////////////////////////////////////////////////
-// UBlackLoadingManager
 
 void UBlackLoadingManager::Initialize(FSubsystemCollectionBase& Collection)
 {
@@ -108,10 +50,11 @@ bool UBlackLoadingManager::ShouldCreateSubsystem(UObject* Outer) const
 
 bool UBlackLoadingManager::Tick(float DeltaTime)
 {
-	UpdateBlackLoadingScreen();
-
-	TimeUntilNextLogHeartbeatSeconds = FMath::Max(TimeUntilNextLogHeartbeatSeconds - DeltaTime, 0.0);
-
+	if (!IsBlackLoadingScreenAnimationPlaying())
+	{
+		UpdateBlackLoadingScreen();
+	}
+	
 	return true; // 保持 Ticker 持续运行
 }
 
@@ -127,7 +70,8 @@ void UBlackLoadingManager::UnregisterBlackLoadingProcessor(TScriptInterface<IBla
 
 void UBlackLoadingManager::UpdateBlackLoadingScreen()
 {
-	bool bLogLoadingScreenStatus = BlackLoadingCVars::LogLoadingScreenReasonEveryFrame;
+	const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
+	bool bLogLoadingScreenStatus = Settings->bLogLoadingScreenReasonEveryFrame;
 
 	if (ShouldShowBlackLoadingScreen())
 	{
@@ -149,8 +93,9 @@ bool UBlackLoadingManager::CheckForAnyNeedToShowBlackLoadingScreen()
 	DebugReasonForShowingOrHidingBlackLoadingScreen = TEXT("Reason for Showing/Hiding LoadingScreen is unknown!");
 
 	const UGameInstance* LocalGameInstance = GetGameInstance();
+	const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
 
-	if (BlackLoadingCVars::ForceLoadingScreenVisible)
+	if (Settings->bForceLevelLoadingScreenVisible)
 	{
 		DebugReasonForShowingOrHidingBlackLoadingScreen = FString(TEXT("BlackLoading.AlwaysShow is true"));
 		return true;
@@ -184,21 +129,6 @@ bool UBlackLoadingManager::CheckForAnyNeedToShowBlackLoadingScreen()
 		{
 			return true;
 		}
-	}
-
-	UGameViewportClient* GameViewportClient = LocalGameInstance->GetGameViewportClient();
-	const bool bIsInSplitscreen = GameViewportClient->GetCurrentSplitscreenConfiguration() != ESplitScreenType::None;
-
-	if (bIsInSplitscreen && bMissingAnyLocalPC)
-	{
-		DebugReasonForShowingOrHidingBlackLoadingScreen = FString(TEXT("At least one missing local player controller in splitscreen"));
-		return true;
-	}
-
-	if (!bIsInSplitscreen && !bFoundAnyLocalPC)
-	{
-		DebugReasonForShowingOrHidingBlackLoadingScreen = FString(TEXT("Need at least one local player controller"));
-		return true;
 	}
 
 	DebugReasonForShowingOrHidingBlackLoadingScreen = TEXT("(nothing wants to show it anymore)");
@@ -241,48 +171,69 @@ void UBlackLoadingManager::ShowBlackLoadingScreen()
 		return;
 	}
 
-	TimeBlackLoadingScreenShown = FPlatformTime::Seconds();
-
-	bCurrentlyShowingBlackLoadingScreen = true;
-
-	CSV_EVENT(BlackLoadingScreen, TEXT("Show"));
-
-	UE_LOG(LogBlackLoading, Log, TEXT("Showing black loading screen. Reason: %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
-
-	UGameInstance* LocalGameInstance = GetGameInstance();
-
-	// 从项目设置中读取黑屏加载界面配置
-	const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
-
-	// 创建加载界面 Widget：优先使用项目设置中的类，否则回退到 UBlackLoadingScreenWidget
-	UClass* WidgetClass = Settings->BlackLoadingScreenWidget.TryLoadClass<UUserWidget>();
-	if (!WidgetClass)
+	// 引擎仍在显示其加载界面时无法显示加载界面。
+	if(IsShowingInitialBlackLoadingScreen())
 	{
-		WidgetClass = UBlackLoadingScreenWidget::StaticClass();
+		UE_LOG(LogBlackLoading, Log, TEXT("在 'IsShowingInitialBlackLoadingScreen()' 为 true 时显示加载界面。"));
+		UE_LOG(LogBlackLoading, Log, TEXT("%s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
 	}
-
-	if (UUserWidget* UserWidget = UUserWidget::CreateWidgetInstance(*LocalGameInstance, WidgetClass, NAME_None))
+	else
 	{
-		BlackLoadingScreenWidget = UserWidget->TakeWidget();
+		UE_LOG(LogBlackLoading, Log, TEXT("在 'IsShowingInitialBlackLoadingScreen()' 为 false 时显示加载界面。"));
+		UE_LOG(LogBlackLoading, Log, TEXT("%s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+
+		UGameInstance* LocalGameInstance = GetGameInstance();
+		const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
+
+		UE_LOG(LogBlackLoading, Log, TEXT("Showing black loading screen. Reason: %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+
+		// 创建加载界面控件 — 优先使用配置的 UMG 子类，留空时回退到 UBlackLoadingScreenWidget 基类
+		TSubclassOf<UUserWidget> LoadingScreenWidgetClass = Settings->BlackLoadingScreenWidget.TryLoadClass<UUserWidget>();
+		if (!LoadingScreenWidgetClass)
+		{
+			UE_LOG(LogBlackLoading, Warning, TEXT("未配置 BlackLoadingScreenWidget 使用默认的 ULoadingProgressUserWidget。"));
+			LoadingScreenWidgetClass = UBlackLoadingScreenWidget::StaticClass();
+		}
+
+		UUserWidget* UserWidget = UUserWidget::CreateWidgetInstance(*LocalGameInstance, LoadingScreenWidgetClass, NAME_None);
+		if (UBlackLoadingScreenWidget* LoadingScreenWidgetInstance = Cast<UBlackLoadingScreenWidget>(UserWidget))
+		{
+			UE_LOG(LogBlackLoading, Log, TEXT("UBlackLoadingScreenWidget 创建成功。"));
+
+			TimeBlackLoadingScreenShown = FPlatformTime::Seconds();
+
+			CSV_EVENT(BlackLoadingScreen, TEXT("Show"));
+			
+			bCurrentlyShowingBlackLoadingScreen = true;
+			BlackLoadingScreenUserWidgetPtr = LoadingScreenWidgetInstance;
+			BlackLoadingScreenWidget = UserWidget->TakeWidget();
+
+			// 绑定动画完成回调
+			LoadingScreenWidgetInstance->OnLoadAnimationCompleted.AddDynamic(this, &UBlackLoadingManager::HandleLoadingScreenLoadAnimationCompleted);
+			LoadingScreenWidgetInstance->OnUnloadAnimationCompleted.AddDynamic(this, &UBlackLoadingManager::HandleLoadingScreenUnloadAnimationCompleted);
+			
+			LoadingScreenWidgetInstance->StartLoadAnimation();
+			
+			// 添加到视口，高 ZOrder 确保在最上层
+			UGameViewportClient* GameViewportClient = LocalGameInstance->GetGameViewportClient();
+			GameViewportClient->AddViewportWidgetContent(BlackLoadingScreenWidget.ToSharedRef(), Settings->BlackLoadingScreenZOrder);
+
+			// 拦截输入
+			StartBlockingInput();
+
+			BlackLoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ true);
+
+			if (!GIsEditor || Settings->ForceTickLoadingScreenEvenInEditor)
+			{
+				// Tick Slate 以确保加载界面立即显示
+				FSlateApplication::Get().Tick();
+			}
+		}
+		else
+		{
+			UE_LOG(LogBlackLoading, Error, TEXT("无法创建 LoadingScreenUserWidget 实例。"));
+		}
 	}
-
-	if (!BlackLoadingScreenWidget.IsValid())
-	{
-		UE_LOG(LogBlackLoading, Error, TEXT("BlackLoadingScreenWidget is still invalid after fallback, aborting."));
-		return;
-	}
-
-	// 添加到视口，高 ZOrder 确保在最上层
-	UGameViewportClient* GameViewportClient = LocalGameInstance->GetGameViewportClient();
-	GameViewportClient->AddViewportWidgetContent(BlackLoadingScreenWidget.ToSharedRef(), Settings->BlackLoadingScreenZOrder);
-
-    // 拦截输入
-	StartBlockingInput();
-
-	BlackLoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ true);
-
-	// Tick Slate 确保加载界面立即显示
-	FSlateApplication::Get().Tick();
 }
 
 void UBlackLoadingManager::HideBlackLoadingScreen()
@@ -292,11 +243,36 @@ void UBlackLoadingManager::HideBlackLoadingScreen()
 		return;
 	}
 
+	if (IsShowingInitialBlackLoadingScreen())
+	{
+		UE_LOG(LogBlackLoading, Log, TEXT("在 'IsShowingInitialBlackLoadingScreen()' 为 true 时等待隐藏加载界面。"));
+		UE_LOG(LogBlackLoading, Log, TEXT("%s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+	}
+	else
+	{
+		UE_LOG(LogBlackLoading, Log, TEXT("在 'IsShowingInitialBlackLoadingScreen()' 为 false 时隐藏加载界面。"));
+		UE_LOG(LogBlackLoading, Log, TEXT("%s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+
+		if (BlackLoadingScreenUserWidgetPtr)
+		{
+			BlackLoadingScreenUserWidgetPtr->StartUnloadAnimation();
+		}
+		else
+		{
+			FinishBlackLoadingScreenCleanup();
+		}
+	}
+}
+
+void UBlackLoadingManager::FinishBlackLoadingScreenCleanup()
+{
 	StopBlockingInput();
 
-	UE_LOG(LogBlackLoading, Log, TEXT("Hiding black loading screen. Reason: %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+	UE_LOG(LogBlackLoading, Log, TEXT("完成黑屏加载界面最终清理. Reason: %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
 
 	RemoveBlackLoadingScreenWidgetFromViewport();
+
+	BlackLoadingScreenUserWidgetPtr = nullptr;
 
 	BlackLoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ false);
 
@@ -325,7 +301,7 @@ void UBlackLoadingManager::StartBlockingInput()
 {
 	if (!InputPreProcessor.IsValid())
 	{
-		InputPreProcessor = MakeShareable<FBlackLoadingScreenInputPreProcessor>(new FBlackLoadingScreenInputPreProcessor());
+		InputPreProcessor = MakeShareable<FLoadingScreenInputPreProcessor>(new FLoadingScreenInputPreProcessor());
 		FSlateApplication::Get().RegisterInputPreProcessor(InputPreProcessor, 0);
 	}
 }
@@ -338,5 +314,27 @@ void UBlackLoadingManager::StopBlockingInput()
 		InputPreProcessor.Reset();
 	}
 }
+
+void UBlackLoadingManager::HandleLoadingScreenLoadAnimationCompleted()
+{
+	UE_LOG(LogBlackLoading, Log, TEXT("黑屏加载界面淡入动画完成"));
+}
+
+void UBlackLoadingManager::HandleLoadingScreenUnloadAnimationCompleted()
+{
+	UE_LOG(LogBlackLoading, Log, TEXT("黑屏加载界面淡出动画完成"));
+	FinishBlackLoadingScreenCleanup();
+}
+
+bool UBlackLoadingManager::IsBlackLoadingScreenAnimationPlaying() const
+{
+	if (BlackLoadingScreenUserWidgetPtr)
+	{
+		return BlackLoadingScreenUserWidgetPtr->IsScreenAnimationPlaying();
+	}
+	return false;
+}
+
+
 
 
