@@ -41,8 +41,12 @@ public:
 	// Progress
 	// ================================================================
 
+	/** 关卡加载界面是否常驻打开 */
+	UFUNCTION(BlueprintPure, Category = "LevelLoading|Progress")
+	bool IsLevelLoadingScreenPersistent() const;
+
 	/** 设置进度（0.0 ~ 1.0），供蓝图子类刷新进度条 */
-	UFUNCTION(BlueprintCallable, Category = "LevelLoading|Progress")
+	UFUNCTION(BlueprintNativeEvent, Category = "LevelLoading|Progress")
 	void SetProgress(float InProgress);
 
 	/** 获取当前进度 */
@@ -70,6 +74,8 @@ protected:
 
 	//~ ULoadingScreenWidget interface
 	virtual void TickAnimation(float InDeltaTime) override;
+	virtual void StartLoadAnimation_Implementation() override;
+	virtual void FinishLoadAnimation_Implementation() override;
 
 	/** Image 类型时从 ULevelLoadingManager 刷新进度 */
 	void TickProgressUpdate(float InDeltaTime);
@@ -126,6 +132,9 @@ private:
 
 	/** 加载是否已完成 */
 	bool bLoadingCompleted = false;
+
+	/** 加载动画是否已完成 */
+	bool bLoadAnimationCompleted = false;
 
 	// ================================================================
 	// 配置解析

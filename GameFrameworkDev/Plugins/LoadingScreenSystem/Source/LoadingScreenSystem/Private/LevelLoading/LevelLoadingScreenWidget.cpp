@@ -37,14 +37,11 @@ void ULevelLoadingScreenWidget::NativePreConstruct()
 void ULevelLoadingScreenWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-
+	bLoadingCompleted = false;
 	// 解析配置（优先 Interface 覆盖，否则全局 Settings）
 	ResolveConfig();
 	ApplyContentTypeVisibility();
 	LoadBackgroundImage();
-
-	// 视频类型时使用 MoviePlayer 播放视频
-	PlayLoadingVideo();
 }
 
 void ULevelLoadingScreenWidget::NativeDestruct()
@@ -122,6 +119,33 @@ void ULevelLoadingScreenWidget::TickAnimation(float InDeltaTime)
 	}
 }
 
+void ULevelLoadingScreenWidget::StartLoadAnimation_Implementation()
+{
+	bLoadAnimationCompleted = false;
+
+	// 开始加载时隐藏整个 UI
+	SetVisibility(ESlateVisibility::Collapsed);
+
+	Super::StartLoadAnimation_Implementation();
+
+	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Start load animation - UI hidden"));
+}
+
+void ULevelLoadingScreenWidget::FinishLoadAnimation_Implementation()
+{
+	bLoadAnimationCompleted = true;
+
+	// 加载动画完成后显示 UI
+	SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+	// 视频类型时使用 MoviePlayer 播放视频
+	PlayLoadingVideo();
+
+	Super::FinishLoadAnimation_Implementation();
+
+	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Finish load animation - UI shown"));
+}
+
 void ULevelLoadingScreenWidget::TickProgressUpdate(float InDeltaTime)
 {
 	UGameInstance* GameInstance = GetGameInstance();
@@ -141,6 +165,11 @@ void ULevelLoadingScreenWidget::TickProgressUpdate(float InDeltaTime)
 		return;
 	}
 
+	if (!bLoadAnimationCompleted)
+	{
+		return;
+	}
+
 	SmoothedProgressTime += InDeltaTime;
 
 	const float RawProgress = LoadingManager->GetPreciseLoadingProgress();
@@ -155,19 +184,30 @@ void ULevelLoadingScreenWidget::TickProgressUpdate(float InDeltaTime)
 
 	if (ClampedProgress >= 100.0f)
 	{
-		bLoadingCompleted = true;
 		OnCloseLoadingScreen();
 	}
 }
 
-void ULevelLoadingScreenWidget::SetProgress(float InProgress)
+bool ULevelLoadingScreenWidget::IsLevelLoadingScreenPersistent() const
+{
+	return !bLoadingCompleted;
+}
+
+void ULevelLoadingScreenWidget::SetProgress_Implementation(float InProgress)
 {
 	CurrentProgress = FMath::Clamp(InProgress, 0.0f, 1.0f);
 }
 
 float ULevelLoadingScreenWidget::GetProgress() const
 {
-	return CurrentProgress;
+	if (bLoadingCompleted)
+	{
+		return 1.0f;
+	}
+	else
+	{
+		return CurrentProgress;
+	}
 }
 
 // =====================================================
@@ -314,6 +354,7 @@ void ULevelLoadingScreenWidget::PlayLoadingVideo()
 	GetMoviePlayer()->OnMoviePlaybackFinished().AddUObject(this, &ULevelLoadingScreenWidget::OnCloseLoadingScreen);
 
 	GetMoviePlayer()->SetupLoadingScreen(LoadingScreen);
+	GetMoviePlayer()->PlayMovie();
 
 	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] MoviePlayer setup complete"));
 }
@@ -328,6 +369,5 @@ void ULevelLoadingScreenWidget::OnLoadingMovieFinished()
 void ULevelLoadingScreenWidget::OnCloseLoadingScreen()
 {
 	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Close loading screen"));
-
-	OnLoadAnimationCompleted.Broadcast();
+	bLoadingCompleted = true;
 }

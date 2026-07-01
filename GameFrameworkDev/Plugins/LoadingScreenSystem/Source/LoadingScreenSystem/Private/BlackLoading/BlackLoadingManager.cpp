@@ -95,12 +95,6 @@ bool UBlackLoadingManager::CheckForAnyNeedToShowBlackLoadingScreen()
 	const UGameInstance* LocalGameInstance = GetGameInstance();
 	const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
 
-	if (Settings->bForceLevelLoadingScreenVisible)
-	{
-		DebugReasonForShowingOrHidingBlackLoadingScreen = FString(TEXT("BlackLoading.AlwaysShow is true"));
-		return true;
-	}
-
 	const FWorldContext* Context = LocalGameInstance->GetWorldContext();
 	if (Context == nullptr)
 	{

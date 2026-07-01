@@ -20,8 +20,7 @@
 	{
 		UBlackLoadingProcessTask* NewLoadingTask = NewObject<UBlackLoadingProcessTask>(BlackLoadingManager);
 		NewLoadingTask->SetShowLoadingScreenReason(ShowLoadingScreenReason);
-
-		BlackLoadingManager->RegisterBlackLoadingProcessor(NewLoadingTask);
+		NewLoadingTask->RegisterWithManager();
 
 		return NewLoadingTask;
 	}
@@ -29,17 +28,45 @@
 	return nullptr;
 }
 
-void UBlackLoadingProcessTask::CompleteLoadingScreenProcessTask()
+/*static*/ void UBlackLoadingProcessTask::DestroyBlackLoadingProcessTask(UBlackLoadingProcessTask* Task, const FString& DestroyLoadingScreenReason)
 {
-	// 标记任务完成，ShouldShowLoadingScreen 将返回 false
+	if (!Task)
+	{
+		return;
+	}
+
+	Task->SetShowLoadingScreenReason(DestroyLoadingScreenReason);
+	Task->UnregisterFromManager();
+}
+
+UBlackLoadingManager* UBlackLoadingProcessTask::GetBlackLoadingManager() const
+{
+	return Cast<UBlackLoadingManager>(GetOuter());
+}
+
+void UBlackLoadingProcessTask::RegisterWithManager()
+{
+	if (UBlackLoadingManager* BlackLoadingManager = GetBlackLoadingManager())
+	{
+		BlackLoadingManager->RegisterBlackLoadingProcessor(this);
+		bIsComplete = false;
+	}
+}
+
+void UBlackLoadingProcessTask::UnregisterFromManager()
+{
 	bIsComplete = true;
 
-	// 从 BlackLoadingManager 中取消注册，允许黑屏加载界面关闭
-	UBlackLoadingManager* BlackLoadingManager = Cast<UBlackLoadingManager>(GetOuter());
-	if (BlackLoadingManager)
+	if (UBlackLoadingManager* BlackLoadingManager = GetBlackLoadingManager())
 	{
 		BlackLoadingManager->UnregisterBlackLoadingProcessor(this);
 	}
+}
+
+void UBlackLoadingProcessTask::CompleteLoadingScreenProcessTask()
+{
+	// 从 BlackLoadingManager 中取消注册并标记完成，允许黑屏加载界面关闭
+	UnregisterFromManager();
 }
 
 void UBlackLoadingProcessTask::SetShowLoadingScreenReason(const FString& InReason)

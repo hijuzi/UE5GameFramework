@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Containers/Ticker.h"
+#include "Widgets/SWidget.h"
 
 #include "LevelLoadingManager.generated.h"
 
@@ -12,6 +13,13 @@
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLevelLoading, Log, All);
 
+/** 关卡加载界面可见性变化委托 */
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnLevelLoadingScreenVisibilityChanged, bool /* bIsVisible */);
+
+class IInputProcessor;
+class ILevelLoadingScreenInterface;
+class UBlackLoadingProcessTask;
+class ULevelLoadingScreenWidget;
 class ULevelStreaming;
 struct FWorldContext;
 
@@ -76,13 +84,10 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Loading|Progress")
 	float GetRawAsyncLoadPercentage() const;
 
-	/** 是否处于关卡加载中 */
+	/** 关卡加载界面是否正在处于常驻打开状态 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Loading|Progress")
-	bool IsLoadingInProgress() const;
+	bool IsLevelLoadingScreenPersistent() const;
 
-	/** 准备关闭关卡加载界面，跳过剩余等待直接进入收尾阶段 */
-	UFUNCTION(BlueprintCallable, Category = "Loading|Progress")
-	void PrepareCloseLoadingScreen();
 
 	/** 当前加载的目标地图名称 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Loading|Progress")
@@ -117,8 +122,71 @@ private:
 	void SetLoadingPhase(ELevelLoadingPhase NewPhase);
 	float CalculatePhaseProgress() const;
 
-	/** Ticker 回调：自动切换阶段并缓存最新进度 */
-	void TickProgress();
+	/** 每帧更新加载界面状态（初始化时注册，销毁时移除） */
+	bool Tick(float DeltaTime);
+
+	/** 驱动进度计算（由 Tick 根据 bIsProgressTickEnabled 控制触发） */
+	void TickProgress(float DeltaTime);
+
+	/** 准备开始加载（Preparing 阶段 Ticker 逻辑，检测异步加载启动） */
+	void OnLoadingStarted();
+
+	/** 加载完成时的清理和日志输出 */
+	void OnLoadingCompleted();
+
+	// ================================================================
+	// Level Loading Screen UI
+	// ================================================================
+
+	/** 根据加载状态更新关卡加载界面的显示/隐藏 */
+	void UpdateLevelLoadingScreen();
+
+	/** 是否需要显示关卡加载界面（含命令行/视口检查 + 需求判断 + 额外保持时长） */
+	bool ShouldShowLevelLoadingScreen();
+
+	/** 检查是否有任何需要显示关卡加载界面的原因（含 World/GameState/加载状态等综合判断） */
+	bool CheckForAnyNeedToShowLevelLoadingScreen();
+
+	/** 是否正在显示初始加载界面（引擎预加载界面） */
+	bool IsShowingInitialLevelLoadingScreen() const;
+
+	/** 关卡加载界面可见性变化事件 */
+	FOnLevelLoadingScreenVisibilityChanged LevelLoadingScreenVisibilityChanged;
+
+	/** 创建并显示关卡加载界面 */
+	void ShowLevelLoadingScreen();
+
+	/** 隐藏并销毁关卡加载界面 */
+	void HideLevelLoadingScreen();
+
+	/** 打开黑屏加载界面（先销毁已有任务，再创建新任务） */
+	void OpenBlackLoadingScreen(const FString& Reason);
+
+	/** 尝试关闭已经存在的黑屏加载界面 */
+	void CloseExistingBlackLoadingScreen(const FString& Reason);
+
+	/** 完成关卡加载界面的最终清理（动画驱动的卸载流程完成后调用） */
+	void FinishLevelLoadingScreenCleanup();
+
+	/** 从视口移除关卡加载界面 Widget */
+	void RemoveLevelWidgetFromViewport();
+
+	/** 拦截输入 */
+	void StartBlockingInput();
+
+	/** 恢复输入 */
+	void StopBlockingInput();
+
+	/** 调整性能设置（ShaderPipelineCache / 世界渲染 / 流式加载优先级 / 挂起检测等） */
+	void ChangePerformanceSettings(bool bEnableLevelLoadingScreen);
+
+	/** 加载动画完成回调 */
+	UFUNCTION()
+	void HandleLevelLoadingScreenLoadAnimationCompleted();
+
+	/** 卸载动画完成回调 */
+	UFUNCTION()
+	void HandleLevelLoadingScreenUnloadAnimationCompleted();
 
 	// ================================================================
 	// Map Loading Callbacks
@@ -146,14 +214,45 @@ private:
 	/** 是否处于 PreLoadMap 与 PostLoadMap 之间 */
 	bool bCurrentlyInLoadMap = false;
 
-	/** Ticker 句柄，驱动内部进度计算 */
+	/** Ticker 句柄，驱动内部进度计算（生命周期：Initialize 注册，Deinitialize 移除） */
 	FTSTicker::FDelegateHandle ProgressTickerHandle;
+
+	/** 是否启用进度 Tick */
+	bool bIsProgressTickEnabled = false;
 
 	/** Ticker 缓存的最新进度值，GetPreciseLoadingProgress 直接返回（无广播开销） */
 	float CachedProgress = 100.0f;
 
+	/** 最近一次关卡的引擎加载耗时（PreLoadMap → PostLoadMap，仅包加载，不含 WorldInit/Finalizing） */
+	float LevelLoadingDuration = 0.0f;
+
 	/** 关卡加载界面最小显示时长（秒），从 LoadingScreenSettings 读取 */
 	float MinimumLevelLoadingScreenDisplayTimeSecs = 2.0f;
+
+	/** The reason why the loading screen is up (or not) */
+	FString DebugReasonForShowingOrHidingLevelLoadingScreen;
+
+	/** 关卡加载界面 UWidget 实例 */
+	TObjectPtr<ULevelLoadingScreenWidget> LevelLoadingScreenUserWidgetPtr;
+
+	/** 关卡加载界面 SWidget 引用 */
+	TSharedPtr<SWidget> LevelLoadingScreenWidget;
+
+	/** 关卡加载界面显示期间关联的黑屏加载任务（保持黑屏常驻） */
+	UPROPERTY()
+	TObjectPtr<UBlackLoadingProcessTask> LevelLoadingBlackScreenTask;
+
+	/** 输入拦截器 */
+	TSharedPtr<IInputProcessor> InputPreProcessor;
+
+	/** 关卡加载界面当前是否正在显示 */
+	bool bCurrentlyShowingLevelLoadingScreen = false;
+
+	/** 最后一次不再需要显示加载界面的时间（用于额外保持） */
+	double TimeLoadingScreenLastDismissed = -1.0;
+
+	/** 加载界面显示的时间戳 */
+	double TimeLevelLoadingScreenShown = 0.0;
 };
 
 #undef UE_API

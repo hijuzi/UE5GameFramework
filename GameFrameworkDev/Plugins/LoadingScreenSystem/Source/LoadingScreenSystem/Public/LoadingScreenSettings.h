@@ -97,14 +97,6 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen)
 	int32 LevelLoadingScreenZOrder = 9000;
 
-	// 关卡加载界面动画过渡类型
-	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen)
-	ELoadingAnimationType LevelLoadingScreenAnimationType = ELoadingAnimationType::Opacity;
-
-	// 关卡加载界面动画插值模式
-	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen)
-	ELoadingAnimationMode LevelLoadingScreenAnimationMode = ELoadingAnimationMode::Linear;
-
 	// 关卡加载界面内容类型
 	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen)
 	ELoadingScreenContentType LevelLoadingScreenContentType = ELoadingScreenContentType::Image;
