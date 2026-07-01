@@ -215,7 +215,7 @@ private:
 	bool bCurrentlyInLoadMap = false;
 
 	/** Ticker 句柄，驱动内部进度计算（生命周期：Initialize 注册，Deinitialize 移除） */
-	FTSTicker::FDelegateHandle ProgressTickerHandle;
+	FTSTicker::FDelegateHandle TickerHandle;
 
 	/** 是否启用进度 Tick */
 	bool bIsProgressTickEnabled = false;

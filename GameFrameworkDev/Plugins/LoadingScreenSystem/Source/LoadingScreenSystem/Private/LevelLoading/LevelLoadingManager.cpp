@@ -42,7 +42,7 @@ void ULevelLoadingManager::Initialize(FSubsystemCollectionBase& Collection)
 	MinimumLevelLoadingScreenDisplayTimeSecs = GetDefault<ULoadingScreenSettings>()->MinimumLevelLoadingScreenDisplayTime;
 
 	// 注册每帧 Tick，生命周期与 Subsystem 一致
-	ProgressTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(
 		FTickerDelegate::CreateUObject(this, &ThisClass::Tick), ProgressTickInterval);
 
 	// 订阅 PreLoadMap（带 Context，可区分 GameInstance）
@@ -61,10 +61,10 @@ void ULevelLoadingManager::Deinitialize()
 	bIsProgressTickEnabled = false;
 
 	// 移除每帧 Tick
-	if (ProgressTickerHandle.IsValid())
+	if (TickerHandle.IsValid())
 	{
-		FTSTicker::GetCoreTicker().RemoveTicker(ProgressTickerHandle);
-		ProgressTickerHandle.Reset();
+		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
+		TickerHandle.Reset();
 	}
 
 	// 取消地图加载委托
@@ -107,7 +107,7 @@ bool ULevelLoadingManager::IsLevelLoadingScreenPersistent() const
 {
 	if (LevelLoadingScreenUserWidgetPtr)
 	{
-		return LevelLoadingScreenUserWidgetPtr->IsScreenAnimationPlaying();
+		return LevelLoadingScreenUserWidgetPtr->IsLevelLoadingScreenPersistent();
 	}
 	return false;
 }

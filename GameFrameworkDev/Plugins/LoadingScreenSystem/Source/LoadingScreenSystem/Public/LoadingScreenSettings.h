@@ -76,7 +76,7 @@ enum class ELoadingScreenContentType : uint8
 /**
  * 关卡加载界面系统的设置。
  */
-UCLASS(config=Game, defaultconfig, meta=(DisplayName="Loading Screen"))
+UCLASS(config=LoadingScreenSystem, defaultconfig, meta=(DisplayName="Loading Screen"))
 class ULoadingScreenSettings : public UDeveloperSettingsBackedByCVars
 {
 	GENERATED_BODY()
