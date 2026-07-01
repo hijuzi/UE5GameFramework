@@ -39,6 +39,7 @@ public class CommonUserWidgetBase : ModuleRules
 				"Engine",
 				"Slate",
 				"SlateCore",
+				"InputCore",
 				"EnhancedInput",
 				"UMG",
 				"CommonInput",

@@ -26,6 +26,7 @@ public class CommonUtility : ModuleRules
 			new string[]
 			{
 				"Core",
+				"Engine",
 				"GameplayTags",
 				// ... add other public dependencies that you statically link with here ...
 			}

@@ -5,7 +5,7 @@
 #include "NativeGameplayTags.h"
 
 /**
- * Platform 相关 GameplayTag（仅模块内部可见）。
+ * Platform 相关 GameplayTag（公开）。
  * 外部请统一通过 #include "GameplayTags/CommonGameplayTags.h" 引入。
  */
 namespace CommonGameplayTags
