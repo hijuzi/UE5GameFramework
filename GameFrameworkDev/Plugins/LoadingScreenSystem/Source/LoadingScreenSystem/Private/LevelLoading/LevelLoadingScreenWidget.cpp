@@ -173,11 +173,15 @@ void ULevelLoadingScreenWidget::FinishLoadAnimation_Implementation()
 	bLoadAnimationCompleted = true;
 	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 淡入动画完成"));
 
-	// 动画完成后恢复进度层显示
-	if (ProgressOverlay.IsValid())
+	if(ContentType == ELoadingScreenContentType::Image)
 	{
-		ProgressOverlay->SetVisibility(EVisibility::Visible);
+		// 动画完成后恢复进度层显示
+		if (ProgressOverlay.IsValid() && !bLoadingCompleted)
+		{
+			ProgressOverlay->SetVisibility(EVisibility::Visible);
+		}
 	}
+	
 
 	Super::FinishLoadAnimation_Implementation();
 }

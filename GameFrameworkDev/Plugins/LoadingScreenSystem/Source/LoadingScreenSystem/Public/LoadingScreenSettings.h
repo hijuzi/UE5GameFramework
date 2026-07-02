@@ -66,7 +66,7 @@ struct LOADINGSCREENSYSTEM_API FLevelLoadingScreenOverrideConfig
 	ELoadingScreenContentType ContentType = ELoadingScreenContentType::Image;
 
 	/** 图片背景资产（ContentType 为 Image 时生效） */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override", meta=(MetaClass="/Script/Engine.Texture2D"))
 	FSoftObjectPath ImageBackground;
 
 	/** 视频路径（ContentType 为 Video 时生效） */

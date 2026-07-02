@@ -171,7 +171,7 @@ bool ULevelLoadingManager::Tick(float DeltaTime)
 	{
 		TickProgress(DeltaTime);
 	}
-	if (!IsLevelLoadingScreenPersistent())
+	if (!IsLevelLoadingScreenPersistent() && !IsLevelLoadingScreenAnimationPlaying())
 	{
 		UpdateLevelLoadingScreen();
 	}
@@ -665,8 +665,6 @@ void ULevelLoadingManager::HideLevelLoadingScreen()
 
 		if (LevelLoadingScreenUserWidgetPtr)
 		{
-			bCurrentlyShowingLevelLoadingScreen = false;
-
 			LevelLoadingScreenUserWidgetPtr->StartUnloadAnimation();
 		}
 		else
@@ -775,6 +773,15 @@ void ULevelLoadingManager::HandleLevelLoadingScreenUnloadAnimationCompleted()
 {
 	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 淡出动画完成"));
 	FinishLevelLoadingScreenCleanup();
+}
+
+bool ULevelLoadingManager::IsLevelLoadingScreenAnimationPlaying() const
+{
+	if (LevelLoadingScreenUserWidgetPtr)
+	{
+		return LevelLoadingScreenUserWidgetPtr->IsScreenAnimationPlaying();
+	}
+	return false;
 }
 
 // ================================================================

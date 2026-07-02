@@ -50,7 +50,7 @@ bool UBlackLoadingManager::ShouldCreateSubsystem(UObject* Outer) const
 
 bool UBlackLoadingManager::Tick(float DeltaTime)
 {
-	if (!IsBlackLoadingScreenAnimationPlaying())
+	if (!IsBlackLoadingScreenAnimationPlaying() && !IsBlackLoadingScreenAnimationPlaying())
 	{
 		UpdateBlackLoadingScreen();
 	}
@@ -275,7 +275,6 @@ void UBlackLoadingManager::HideBlackLoadingScreen()
 
 		if (BlackLoadingScreenUserWidgetPtr)
 		{
-			bCurrentlyShowingBlackLoadingScreen = false;
 			BlackLoadingScreenUserWidgetPtr->StartUnloadAnimation();
 		}
 		else

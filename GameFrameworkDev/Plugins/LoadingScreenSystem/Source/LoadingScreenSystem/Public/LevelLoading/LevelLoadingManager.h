@@ -85,6 +85,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Loading|Progress")
 	bool IsLevelLoadingScreenPersistent() const;
 
+	/** 关卡加载界面是否正在播放动画 */
+	bool IsLevelLoadingScreenAnimationPlaying() const;
+
 	/** 当前是否正在加载关卡中，并查表确认是否需要显示加载界面（PreLoadMap 与 PostLoadMap 之间） */
 	bool IsCurrentlyLoadingMap();
 
