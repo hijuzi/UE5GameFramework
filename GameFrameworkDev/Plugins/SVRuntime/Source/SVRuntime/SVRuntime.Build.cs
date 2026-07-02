@@ -40,7 +40,7 @@ public class SVRuntime : ModuleRules
 				"GameCoreFramework",
 				"GameUIFramework",
 				"CommonUtility",
-				"CommonLoadingScreen",
+				"LoadingScreenSystem",
 				"ControlFlows",
 			}
 			);

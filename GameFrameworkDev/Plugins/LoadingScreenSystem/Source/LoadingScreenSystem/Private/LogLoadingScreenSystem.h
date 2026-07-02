@@ -4,5 +4,5 @@
 
 #include "CoreMinimal.h"
 
-DECLARE_LOG_CATEGORY_EXTERN(LogLoadingScreenSystem, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogLevelLoading, Log, All);
 DECLARE_LOG_CATEGORY_EXTERN(LogBlackLoading, Log, All);

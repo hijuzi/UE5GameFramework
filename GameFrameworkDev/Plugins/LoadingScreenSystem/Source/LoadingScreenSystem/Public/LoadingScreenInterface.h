@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
-#include "UObject/SoftObjectPath.h"
 
 #include "LoadingScreenInterface.generated.h"
 
@@ -14,35 +13,6 @@
 enum class ELoadingAnimationType : uint8;
 enum class ELoadingAnimationMode : uint8;
 enum class ELoadingScreenContentType : uint8;
-
-/**
- * 关卡加载界面覆盖参数结构体
- */
-USTRUCT(BlueprintType)
-struct LOADINGSCREENSYSTEM_API FLevelLoadingScreenOverrideConfig
-{
-	GENERATED_BODY()
-
-	// ---- 覆盖开关 ----
-
-	/** 是否覆盖 Content 参数 */
-	UPROPERTY()
-	bool bOverrideContent = false;
-
-	// ---- Content 参数 ----
-
-	/** 关卡加载界面内容类型 */
-	UPROPERTY()
-	uint8 ContentType = 0;
-
-	/** 图片背景资产（ContentType 为 Image 时生效） */
-	UPROPERTY()
-	FSoftObjectPath ImageBackground;
-
-	/** 视频路径（ContentType 为 Video 时生效） */
-	UPROPERTY()
-	FString VideoPath;
-};
 
 /** 用于那些可能触发加载、从而需要显示关卡加载界面的对象的接口 */
 UINTERFACE(MinimalAPI, BlueprintType)
@@ -63,18 +33,6 @@ public:
 	{
 		return false;
 	}
-
-	/** 获取关卡加载界面覆盖参数。默认返回空（无覆盖）。 */
-	virtual void GetLevelLoadingScreenOverrideConfig(FLevelLoadingScreenOverrideConfig& OutConfig) const
-	{
-		OutConfig = FLevelLoadingScreenOverrideConfig();
-	}
-
-	/** 
-	 * 静态方法：从 WorldContext 中查找 ILevelLoadingScreenInterface 实现者，收集关卡加载界面覆盖参数。
-	 * 优先使用第一个返回 bOverrideContent 为 true 的配置。
-	 */
-	static UE_API FLevelLoadingScreenOverrideConfig GetLevelLoadingScreenOverrideConfig(const UObject* WorldContextObject);
 };
 
 // ----------------------------------------------------------------------------

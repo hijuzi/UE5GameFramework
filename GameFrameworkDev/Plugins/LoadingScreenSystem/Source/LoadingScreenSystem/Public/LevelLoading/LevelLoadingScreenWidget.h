@@ -8,6 +8,7 @@
 #include "LevelLoadingScreenWidget.generated.h"
 
 class SOverlay;
+class SBorder;
 class SCanvas;
 class SImage;
 
@@ -75,6 +76,7 @@ protected:
 	//~ ULoadingScreenWidget interface
 	virtual void TickAnimation(float InDeltaTime) override;
 	virtual void StartLoadAnimation_Implementation() override;
+	virtual void StartUnloadAnimation_Implementation() override;
 	virtual void FinishLoadAnimation_Implementation() override;
 
 	/** Image 类型时从 ULevelLoadingManager 刷新进度 */
@@ -88,7 +90,9 @@ private:
 	TSharedPtr<SOverlay> RootOverlay;
 	TSharedPtr<SOverlay> ProgressOverlay;
 	TSharedPtr<SImage> BackgroundImageWidget;
-	TSharedPtr<SCanvas> VideoCanvas;
+	TSharedPtr<SOverlay> VideoOverlay;
+	TSharedPtr<SBorder> VideoBackgroundBorder;
+	TSharedPtr<SCanvas> VideoImageCanvas;
 	TSharedPtr<SImage> VideoImageWidget;
 
 	// ================================================================
@@ -157,4 +161,10 @@ private:
 
     UFUNCTION()
     void OnLoadingMovieFinished();
+
+	/** 尝试取消当前视频 */
+	void TryCancelMovie();
+
+	/** 视频时长 Fallback Ticker 句柄（使用 CoreTicker，关卡加载期间也能触发） */
+	FTSTicker::FDelegateHandle MovieFinishedTickerHandle;
 };

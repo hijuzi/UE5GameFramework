@@ -7,18 +7,17 @@
 #include "Containers/Ticker.h"
 #include "Widgets/SWidget.h"
 
+#include "LoadingScreenSettings.h"
+
 #include "LevelLoadingManager.generated.h"
 
 #define UE_API LOADINGSCREENSYSTEM_API
-
-DECLARE_LOG_CATEGORY_EXTERN(LogLevelLoading, Log, All);
 
 /** 关卡加载界面可见性变化委托 */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLevelLoadingScreenVisibilityChanged, bool /* bIsVisible */);
 
 class IInputProcessor;
 class ILevelLoadingScreenInterface;
-class UBlackLoadingProcessTask;
 class ULevelLoadingScreenWidget;
 class ULevelStreaming;
 struct FWorldContext;
@@ -55,8 +54,8 @@ enum class ELevelLoadingPhase : uint8
  *   1. 自动订阅 PreLoadMap / PostLoadMap，无需手动初始化
  *   2. GetPreciseLoadingProgress() 获取 0~100 的精确进度值（轮询模式，无广播）
  */
-UCLASS(MinimalAPI)
-class ULevelLoadingManager : public UGameInstanceSubsystem
+UCLASS()
+class LOADINGSCREENSYSTEM_API ULevelLoadingManager : public UGameInstanceSubsystem
 {
 	GENERATED_BODY()
 
@@ -88,10 +87,19 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Loading|Progress")
 	bool IsLevelLoadingScreenPersistent() const;
 
+	/** 当前是否正在加载关卡中，并查表确认是否需要显示加载界面（PreLoadMap 与 PostLoadMap 之间） */
+	bool IsCurrentlyLoadingMap();
 
 	/** 当前加载的目标地图名称 */
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Loading|Progress")
 	const FString& GetPreLoadMapName() const { return PreLoadMapName; }
+
+	/** 获取当前加载关卡的覆盖配置（从 DataTable 中查表，未配置时返回默认空配置） */
+	UFUNCTION(BlueprintCallable, Category = "Loading|Config")
+	FLevelLoadingScreenOverrideConfig GetCurrentLevelOverrideConfig();
+
+	/** 关卡加载界面可见性变化事件 */
+	FOnLevelLoadingScreenVisibilityChanged LevelLoadingScreenVisibilityChanged;
 
 	// ================================================================
 	// Configuration (EditDefaultsOnly / BlueprintReadWrite)
@@ -150,20 +158,11 @@ private:
 	/** 是否正在显示初始加载界面（引擎预加载界面） */
 	bool IsShowingInitialLevelLoadingScreen() const;
 
-	/** 关卡加载界面可见性变化事件 */
-	FOnLevelLoadingScreenVisibilityChanged LevelLoadingScreenVisibilityChanged;
-
 	/** 创建并显示关卡加载界面 */
 	void ShowLevelLoadingScreen();
 
 	/** 隐藏并销毁关卡加载界面 */
 	void HideLevelLoadingScreen();
-
-	/** 打开黑屏加载界面（先销毁已有任务，再创建新任务） */
-	void OpenBlackLoadingScreen(const FString& Reason);
-
-	/** 尝试关闭已经存在的黑屏加载界面 */
-	void CloseExistingBlackLoadingScreen(const FString& Reason);
 
 	/** 完成关卡加载界面的最终清理（动画驱动的卸载流程完成后调用） */
 	void FinishLevelLoadingScreenCleanup();
@@ -194,6 +193,9 @@ private:
 
 	void HandlePreLoadMap(const FWorldContext& WorldContext, const FString& MapName);
 	void HandlePostLoadMap(UWorld* LoadedWorld);
+
+	/** 根据地图名称查表，返回匹配的行（无匹配返回 nullptr） */
+	const FLevelLoadingScreenTableRow* FindLevelLoadingScreenTableRow(const FString& MapName);
 
 	// ================================================================
 	// Member Variables
@@ -238,21 +240,24 @@ private:
 	/** 关卡加载界面 SWidget 引用 */
 	TSharedPtr<SWidget> LevelLoadingScreenWidget;
 
-	/** 关卡加载界面显示期间关联的黑屏加载任务（保持黑屏常驻） */
-	UPROPERTY()
-	TObjectPtr<UBlackLoadingProcessTask> LevelLoadingBlackScreenTask;
-
 	/** 输入拦截器 */
 	TSharedPtr<IInputProcessor> InputPreProcessor;
 
 	/** 关卡加载界面当前是否正在显示 */
 	bool bCurrentlyShowingLevelLoadingScreen = false;
 
+	/** 关卡加载界面是否正在执行隐藏流程（卸载动画播放中），防止 Tick 重复触发 HideLevelLoadingScreen */
+	bool bIsHidingLevelLoadingScreen = false;
+
 	/** 最后一次不再需要显示加载界面的时间（用于额外保持） */
 	double TimeLoadingScreenLastDismissed = -1.0;
 
 	/** 加载界面显示的时间戳 */
 	double TimeLevelLoadingScreenShown = 0.0;
+
+	/** 关卡加载界面覆盖配置 DataTable 缓存（懒加载，避免每次查表都 TryLoad） */
+	UPROPERTY(Transient)
+	TObjectPtr<UDataTable> CachedLevelLoadingScreenOverrideTable;
 };
 
 #undef UE_API

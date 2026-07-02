@@ -2,8 +2,8 @@
 
 #include "LevelLoading/LevelLoadingScreenWidget.h"
 #include "LevelLoading/LevelLoadingManager.h"
+#include "BlackLoading/BlackLoadingManager.h"
 #include "LoadingScreenSettings.h"
-#include "LoadingScreenInterface.h"
 #include "LogLoadingScreenSystem.h"
 
 #include "Engine/GameInstance.h"
@@ -37,15 +37,21 @@ void ULevelLoadingScreenWidget::NativePreConstruct()
 void ULevelLoadingScreenWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
-	bLoadingCompleted = false;
 	// 解析配置（优先 Interface 覆盖，否则全局 Settings）
 	ResolveConfig();
 	ApplyContentTypeVisibility();
 	LoadBackgroundImage();
+	// 视频类型时使用 MoviePlayer 播放视频
+	PlayLoadingVideo();
 }
 
 void ULevelLoadingScreenWidget::NativeDestruct()
 {
+	if (MovieFinishedTickerHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(MovieFinishedTickerHandle);
+		MovieFinishedTickerHandle.Reset();
+	}
 	Super::NativeDestruct();
 }
 
@@ -55,7 +61,9 @@ void ULevelLoadingScreenWidget::ReleaseSlateResources(bool bReleaseChildren)
 	RootOverlay.Reset();
 	ProgressOverlay.Reset();
 	BackgroundImageWidget.Reset();
-	VideoCanvas.Reset();
+	VideoOverlay.Reset();
+	VideoBackgroundBorder.Reset();
+	VideoImageCanvas.Reset();
 	VideoImageWidget.Reset();
 }
 
@@ -93,13 +101,28 @@ TSharedRef<SWidget> ULevelLoadingScreenWidget::RebuildWidget()
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Fill)
 		[
-			SAssignNew(VideoCanvas, SCanvas)
-			+ SCanvas::Slot()
-			.Position(FVector2D(0, 0))
-			.Size(FVector2D(1, 1))
+			SAssignNew(VideoOverlay, SOverlay)
+			// 视频黑底背景，全局展开
+			+ SOverlay::Slot()
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Fill)
 			[
-				SAssignNew(VideoImageWidget, SImage)
-				.Image(&VideoImageBrush)
+				SAssignNew(VideoBackgroundBorder, SBorder)
+				.BorderBackgroundColor(FLinearColor::Black)
+			]
+			// 视频/图标 Canvas，全局展开，内部自由布局
+			+ SOverlay::Slot()
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Fill)
+			[
+				SAssignNew(VideoImageCanvas, SCanvas)
+				+ SCanvas::Slot()
+				.Position(FVector2D(0, 0))
+				.Size(FVector2D(1, 1))
+				[
+					SAssignNew(VideoImageWidget, SImage)
+					.Image(&VideoImageBrush)
+				]
 			]
 		];
 
@@ -121,29 +144,74 @@ void ULevelLoadingScreenWidget::TickAnimation(float InDeltaTime)
 
 void ULevelLoadingScreenWidget::StartLoadAnimation_Implementation()
 {
-	bLoadAnimationCompleted = false;
-
-	// 开始加载时隐藏整个 UI
-	SetVisibility(ESlateVisibility::Collapsed);
-
 	Super::StartLoadAnimation_Implementation();
+	bLoadAnimationCompleted = false;
+	bLoadingCompleted = false;
+	// 开始加载动画时隐藏界面
+	SetRenderOpacity(0.0f);
 
-	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Start load animation - UI hidden"));
+	// 动画期间打开黑屏过渡界面（自动关闭模式：动画完成后黑屏自动消失）
+	if (UGameInstance* LocalGameInstance = GetGameInstance())
+	{
+		if (UBlackLoadingManager* BlackMgr = LocalGameInstance->GetSubsystem<UBlackLoadingManager>())
+		{
+			BlackMgr->OpenBlackLoadingScreen(TEXT("Level loading screen load animation"), /*bAutoClose=*/ true);
+		}
+	}
+
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 开始淡入动画 - UI已隐藏"));
+}
+
+void ULevelLoadingScreenWidget::StartUnloadAnimation_Implementation()
+{
+	Super::StartUnloadAnimation_Implementation();
+
+	// 卸载动画期间打开黑屏过渡界面（自动关闭模式：动画完成后黑屏自动消失）
+	if (UGameInstance* LocalGameInstance = GetGameInstance())
+	{
+		if (UBlackLoadingManager* BlackMgr = LocalGameInstance->GetSubsystem<UBlackLoadingManager>())
+		{
+			BlackMgr->OpenBlackLoadingScreen(TEXT("Level loading screen unload animation"), /*bAutoClose=*/ true);
+		}
+	}
+
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 开始淡出动画"));
 }
 
 void ULevelLoadingScreenWidget::FinishLoadAnimation_Implementation()
 {
+	Super::FinishLoadAnimation_Implementation();
+	
 	bLoadAnimationCompleted = true;
 
-	// 加载动画完成后显示 UI
-	SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	// 加载动画结束后恢复正常显示
+	SetRenderOpacity(1.0f);
 
-	// 视频类型时使用 MoviePlayer 播放视频
-	PlayLoadingVideo();
+	if (ContentType == ELoadingScreenContentType::Video)
+	{
+		GetMoviePlayer()->PlayMovie();
 
-	Super::FinishLoadAnimation_Implementation();
+		// PIE 下 MoviePlayer 实际不播放视频，用 MinimumDisplayTimeSecs 作为 Fallback 延时
+		// 使用 CoreTicker 而非 World Timer，确保关卡加载期间也能正常触发
+		if (MinimumDisplayTimeSecs > 0.0f)
+		{
+			MovieFinishedTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+				FTickerDelegate::CreateWeakLambda(this, [this](float) -> bool
+				{
+					TryCancelMovie();
+					return false; // 一次性执行后自动注销
+				}),
+				MinimumDisplayTimeSecs);
+			UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 视频Fallback Ticker已设置: %.2fs"), MinimumDisplayTimeSecs);
+		}
+		else
+		{
+			// 无最小显示时长配置，直接结束
+			OnLoadingMovieFinished();
+		}
+	}
 
-	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Finish load animation - UI shown"));
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 淡入动画完成"));
 }
 
 void ULevelLoadingScreenWidget::TickProgressUpdate(float InDeltaTime)
@@ -240,12 +308,19 @@ void ULevelLoadingScreenWidget::ResolveConfig()
 {
 	const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
 
-	// 优先从 ILevelLoadingScreenInterface 获取覆盖参数
-	const FLevelLoadingScreenOverrideConfig Override = ILevelLoadingScreenInterface::GetLevelLoadingScreenOverrideConfig(this);
+	// 优先从 DataTable 获取当前关卡的覆盖参数
+	FLevelLoadingScreenOverrideConfig Override;
+	if (UGameInstance* GI = GetGameInstance())
+	{
+		if (ULevelLoadingManager* LM = GI->GetSubsystem<ULevelLoadingManager>())
+		{
+			Override = LM->GetCurrentLevelOverrideConfig();
+		}
+	}
 
 	if (Override.bOverrideContent)
 	{
-		ContentType = static_cast<ELoadingScreenContentType>(Override.ContentType);
+		ContentType = Override.ContentType;
 		ImageBackgroundPath = Override.ImageBackground;
 		VideoPath = Override.VideoPath;
 	}
@@ -256,11 +331,17 @@ void ULevelLoadingScreenWidget::ResolveConfig()
 		VideoPath = Settings->LevelLoadingScreenVideoPath;
 	}
 
+	// PIE 下视频无法播放，强制使用图片类型
+	if (GetWorld() && GetWorld()->WorldType == EWorldType::PIE)
+	{
+		ContentType = ELoadingScreenContentType::Image;
+	}
+
 	MinimumDisplayTimeSecs = Settings->MinimumLevelLoadingScreenDisplayTime;
 
-	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Config resolved: LoadDuration=%.2f, UnloadDuration=%.2f, ContentType=%s, MinDisplayTime=%.2f"),
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 配置解析: LoadDuration=%.2f, UnloadDuration=%.2f, ContentType=%s, MinDisplayTime=%.2f"),
 		LoadAnimationDuration, UnloadAnimationDuration,
-		ContentType == ELoadingScreenContentType::Image ? TEXT("Image") : TEXT("Video"),
+		ContentType == ELoadingScreenContentType::Image ? TEXT("图片") : TEXT("视频"),
 		MinimumDisplayTimeSecs);
 }
 
@@ -272,9 +353,9 @@ void ULevelLoadingScreenWidget::ApplyContentTypeVisibility()
 		{
 			ProgressOverlay->SetVisibility(EVisibility::SelfHitTestInvisible);
 		}
-		if (VideoCanvas.IsValid())
+		if (VideoOverlay.IsValid())
 		{
-			VideoCanvas->SetVisibility(EVisibility::Collapsed);
+			VideoOverlay->SetVisibility(EVisibility::Collapsed);
 		}
 	}
 	else if (ContentType == ELoadingScreenContentType::Video)
@@ -283,9 +364,9 @@ void ULevelLoadingScreenWidget::ApplyContentTypeVisibility()
 		{
 			ProgressOverlay->SetVisibility(EVisibility::Collapsed);
 		}
-		if (VideoCanvas.IsValid())
+		if (VideoOverlay.IsValid())
 		{
-			VideoCanvas->SetVisibility(EVisibility::SelfHitTestInvisible);
+			VideoOverlay->SetVisibility(EVisibility::SelfHitTestInvisible);
 		}
 	}
 }
@@ -299,14 +380,14 @@ void ULevelLoadingScreenWidget::LoadBackgroundImage()
 
 	if (ImageBackgroundPath.IsNull())
 	{
-		UE_LOG(LogLoadingScreenSystem, Warning, TEXT("[LevelLoadingScreenWidget] ImageBackgroundPath is null, skip background image"));
+		UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面] 图片背景路径为空，跳过背景图加载"));
 		return;
 	}
 
 	UTexture2D* BGTexture = Cast<UTexture2D>(ImageBackgroundPath.TryLoad());
 	if (!BGTexture)
 	{
-		UE_LOG(LogLoadingScreenSystem, Error, TEXT("[LevelLoadingScreenWidget] Failed to load background texture: %s"), *ImageBackgroundPath.ToString());
+		UE_LOG(LogLevelLoading, Error, TEXT("[关卡加载界面] 背景纹理加载失败: %s"), *ImageBackgroundPath.ToString());
 		return;
 	}
 
@@ -315,7 +396,7 @@ void ULevelLoadingScreenWidget::LoadBackgroundImage()
 	if (BackgroundImageWidget.IsValid())
 	{
 		BackgroundImageWidget->SetImage(&BackgroundBrush);
-		UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Background image loaded: %s"), *ImageBackgroundPath.ToString());
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 背景图片已加载: %s"), *ImageBackgroundPath.ToString());
 	}
 }
 
@@ -332,11 +413,11 @@ void ULevelLoadingScreenWidget::PlayLoadingVideo()
 
 	if (VideoPath.IsEmpty())
 	{
-		UE_LOG(LogLoadingScreenSystem, Warning, TEXT("[LevelLoadingScreenWidget] VideoPath is empty, skip video playback"));
+		UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面] 视频路径为空，跳过视频播放"));
 		return;
 	}
 
-	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Playing loading video: %s, MinDisplayTime=%.1fs"),
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 正在播放加载视频: %s, 最小显示时长=%.1fs"),
 		*VideoPath, MinimumDisplayTimeSecs);
 
 	FLoadingScreenAttributes LoadingScreen;
@@ -351,23 +432,53 @@ void ULevelLoadingScreenWidget::PlayLoadingVideo()
 	LoadingScreen.WidgetLoadingScreen = TakeWidget();
 
 	// 监听视频播放完成
-	GetMoviePlayer()->OnMoviePlaybackFinished().AddUObject(this, &ULevelLoadingScreenWidget::OnCloseLoadingScreen);
+	GetMoviePlayer()->OnMoviePlaybackFinished().AddUObject(this, &ULevelLoadingScreenWidget::OnLoadingMovieFinished);
 
 	GetMoviePlayer()->SetupLoadingScreen(LoadingScreen);
-	GetMoviePlayer()->PlayMovie();
-
-	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] MoviePlayer setup complete"));
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] MoviePlayer 设置完成"));
 }
 
 void ULevelLoadingScreenWidget::OnLoadingMovieFinished()
 {
-	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LoadProgress] Movie playback finished, preparing to hide loading screen"));
-
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 视频播放完成，准备隐藏"));
 	OnCloseLoadingScreen();
+}
+
+void ULevelLoadingScreenWidget::TryCancelMovie()
+{
+
+	if (bLoadingCompleted)
+	{
+		return;
+	}
+
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 尝试取消视频"));
+
+	// 如果没有视频播放，则清理并关闭
+	if (!GetMoviePlayer()->IsMovieCurrentlyPlaying())
+	{
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 无视频播放，清理并关闭"));
+
+		// 解绑 OnMoviePlaybackFinished 委托，避免重复触发
+		GetMoviePlayer()->OnMoviePlaybackFinished().RemoveAll(this);
+
+		OnCloseLoadingScreen();
+	}
+	else
+	{
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 视频仍在播放，跳过清理"));
+	}
 }
 
 void ULevelLoadingScreenWidget::OnCloseLoadingScreen()
 {
-	UE_LOG(LogLoadingScreenSystem, Log, TEXT("[LevelLoadingScreenWidget] Close loading screen"));
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 关闭加载界面"));
+	
+	// 清除 Fallback Ticker，避免重复调用
+	if (MovieFinishedTickerHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(MovieFinishedTickerHandle);
+		MovieFinishedTickerHandle.Reset();
+	}
 	bLoadingCompleted = true;
 }

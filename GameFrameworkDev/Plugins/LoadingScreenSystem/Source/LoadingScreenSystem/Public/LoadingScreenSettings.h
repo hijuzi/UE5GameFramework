@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Engine/DeveloperSettingsBackedByCVars.h"
+#include "Engine/DataTable.h"
 #include "UObject/SoftObjectPath.h"
 #include "Framework/Application/IInputProcessor.h"
 
@@ -71,6 +72,58 @@ enum class ELoadingScreenContentType : uint8
 {
 	Image		UMETA(DisplayName = "图片背景"),
 	Video		UMETA(DisplayName = "视频"),
+};
+
+/**
+ * 关卡加载界面覆盖参数结构体
+ * 用于 DataTable 行中按关卡覆盖加载界面的显示内容和参数。
+ */
+USTRUCT(BlueprintType)
+struct LOADINGSCREENSYSTEM_API FLevelLoadingScreenOverrideConfig
+{
+	GENERATED_BODY()
+
+	// ---- 覆盖开关 ----
+
+	/** 是否覆盖 Content 参数 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override")
+	bool bOverrideContent = false;
+
+	// ---- Content 参数 ----
+
+	/** 关卡加载界面内容类型 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override")
+	ELoadingScreenContentType ContentType = ELoadingScreenContentType::Image;
+
+	/** 图片背景资产（ContentType 为 Image 时生效） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override")
+	FSoftObjectPath ImageBackground;
+
+	/** 视频路径（ContentType 为 Video 时生效） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override")
+	FString VideoPath;
+};
+
+/**
+ * DataTable 行结构体：关卡加载界面配置表。
+ * 每行对应一个关卡，控制该关卡是否显示加载界面及对应的覆盖参数。
+ */
+USTRUCT(BlueprintType)
+struct LOADINGSCREENSYSTEM_API FLevelLoadingScreenTableRow : public FTableRowBase
+{
+	GENERATED_BODY()
+
+	/** 关卡/World 路径 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level", meta = (AllowedClasses = "/Script/Engine.World"))
+	FSoftObjectPath LevelMap;
+
+	/** 是否显示关卡加载界面。未在表中配置的关卡默认为显示（true）。 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Level")
+	bool bShouldShowLevelLoadingScreen = false;
+
+	/** 关卡加载界面覆盖配置（视频、图片等） */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override")
+	FLevelLoadingScreenOverrideConfig OverrideConfig;
 };
 
 /**
@@ -144,6 +197,12 @@ public:
 	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen, meta=(ClampMin=1, ClampMax=100))
 	int32 LevelLoadingScreenWhitelistCheckFrames = 10;
 
+	// 关卡加载界面覆盖配置表（DataTable），用于按关卡控制是否显示加载界面及覆盖参数。
+	// 行结构体：FLevelLoadingScreenTableRow
+	// 若未配置 / 表中未找到当前关卡，则默认显示加载界面。
+	UPROPERTY(config, EditAnywhere, Category=LevelLoadingScreen, meta=(AllowedClasses="/Script/Engine.DataTable"))
+	FSoftObjectPath LevelLoadingScreenOverrideTable;
+
 	//~=========================================================================
 	// 黑屏加载界面
 	//~=========================================================================
@@ -158,11 +217,11 @@ public:
 
 	// 黑屏加载界面加载时长（秒），淡入动画时长
 	UPROPERTY(config, EditAnywhere, Category=BlackLoadingScreen, meta=(ForceUnits=s))
-	float BlackLoadingScreenLoadDuration = 0.5f;
+	float BlackLoadingScreenLoadDuration = 0.15f;
 
 	// 黑屏加载界面卸载时长（秒），淡出动画时长
 	UPROPERTY(config, EditAnywhere, Category=BlackLoadingScreen, meta=(ForceUnits=s))
-	float BlackLoadingScreenUnloadDuration = 0.5f;
+	float BlackLoadingScreenUnloadDuration = 1.5f;
 
 	// 黑屏加载界面动画过渡类型
 	UPROPERTY(config, EditAnywhere, Category=BlackLoadingScreen)
@@ -194,10 +253,10 @@ public:
 
 	// 为 true 时，每帧都会将关卡加载界面与黑屏加载界面的显示/隐藏原因输出到日志。
 	UPROPERTY(config, EditAnywhere, Category=Debug)
-	bool bLogLoadingScreenReasonEveryFrame = false;
+	bool bLogLoadingScreenReasonEveryFrame = true;
 
 	// 即使在编辑器中也强制 Tick 关卡加载界面
 	// （在迭代关卡加载界面时有用）
 	UPROPERTY(config, EditAnywhere, Category=Debug)
-	bool ForceTickLoadingScreenEvenInEditor = true;
+	bool ForceTickLoadingScreenEvenInEditor = false;
 };

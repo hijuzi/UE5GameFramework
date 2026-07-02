@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Engine/DataAsset.h"
-#include "CommonLoadingScreenSettings.h"
+#include "LoadingScreenSettings.h"
 
 #include "SVExperienceDefinition.generated.h"
 
@@ -59,13 +59,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Loading Screen|Timing", meta = (ForceUnits = s, ClampMin = "0.0", ClampMax = "5.0", EditCondition = "bOverrideLoadingScreenTiming"))
 	float LoadingScreenUnloadDurationOverride = 0.5f;
 
-	/** 覆盖加载界面动画过渡类型 */
-	UPROPERTY(EditAnywhere, Category = "Loading Screen|Timing", meta = (EditCondition = "bOverrideLoadingScreenTiming"))
-	ECommonLoadingAnimationType LoadingScreenAnimationTypeOverride = ECommonLoadingAnimationType::Opacity;
+	// TODO: 迁移至 LoadingScreenSystem 枚举类型
+	// /** 覆盖加载界面动画过渡类型 */
+	// UPROPERTY(EditAnywhere, Category = "Loading Screen|Timing", meta = (EditCondition = "bOverrideLoadingScreenTiming"))
+	// ECommonLoadingAnimationType LoadingScreenAnimationTypeOverride = ECommonLoadingAnimationType::Opacity;
 
-	/** 覆盖加载界面动画插值模式 */
-	UPROPERTY(EditAnywhere, Category = "Loading Screen|Timing", meta = (EditCondition = "bOverrideLoadingScreenTiming"))
-	ECommonLoadingAnimationMode LoadingScreenAnimationModeOverride = ECommonLoadingAnimationMode::Linear;
+	// TODO: 迁移至 LoadingScreenSystem 枚举类型
+	// /** 覆盖加载界面动画插值模式 */
+	// UPROPERTY(EditAnywhere, Category = "Loading Screen|Timing", meta = (EditCondition = "bOverrideLoadingScreenTiming"))
+	// ECommonLoadingAnimationMode LoadingScreenAnimationModeOverride = ECommonLoadingAnimationMode::Linear;
 
 	/** 覆盖加载界面的内容参数（启用后下方 Content 参数生效） */
 	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content")
@@ -73,14 +75,14 @@ public:
 
 	/** 覆盖加载界面内容类型 */
 	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (EditCondition = "bOverrideLoadingScreenContent"))
-	ECommonLoadingScreenContentType LoadingScreenContentTypeOverride = ECommonLoadingScreenContentType::Image;
+	ELoadingScreenContentType LoadingScreenContentTypeOverride = ELoadingScreenContentType::Image;
 
 	/** 覆盖图片背景资产（ContentType 为 Image 时生效） */
-	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (MetaClass = "/Script/Engine.Texture2D", EditCondition = "bOverrideLoadingScreenContent && LoadingScreenContentTypeOverride == ECommonLoadingScreenContentType::Image"))
+	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (MetaClass = "/Script/Engine.Texture2D", EditCondition = "bOverrideLoadingScreenContent && LoadingScreenContentTypeOverride == ELoadingScreenContentType::Image"))
 	FSoftObjectPath LoadingScreenImageBackgroundOverride;
 
 	/** 覆盖视频路径（ContentType 为 Video 时生效） */
-	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (EditCondition = "bOverrideLoadingScreenContent && LoadingScreenContentTypeOverride == ECommonLoadingScreenContentType::Video"))
+	UPROPERTY(EditAnywhere, Category = "Loading Screen|Content", meta = (EditCondition = "bOverrideLoadingScreenContent && LoadingScreenContentTypeOverride == ELoadingScreenContentType::Video"))
 	FString LoadingScreenVideoPathOverride;
 
 	/** 覆盖黑屏的时间参数（启用后下方 Duration 参数生效） */
@@ -95,13 +97,15 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Black Screen|Timing", meta = (ForceUnits = s, ClampMin = "0.0", ClampMax = "5.0", EditCondition = "bOverrideBlackScreenTiming"))
 	float BlackScreenUnloadDurationOverride = 0.5f;
 
-	/** 覆盖黑屏动画过渡类型 */
-	UPROPERTY(EditAnywhere, Category = "Black Screen|Timing", meta = (EditCondition = "bOverrideBlackScreenTiming"))
-	ECommonLoadingAnimationType BlackScreenAnimationTypeOverride = ECommonLoadingAnimationType::Opacity;
+	// TODO: 迁移至 LoadingScreenSystem 枚举类型
+	// /** 覆盖黑屏动画过渡类型 */
+	// UPROPERTY(EditAnywhere, Category = "Black Screen|Timing", meta = (EditCondition = "bOverrideBlackScreenTiming"))
+	// ECommonLoadingAnimationType BlackScreenAnimationTypeOverride = ECommonLoadingAnimationType::Opacity;
 
-	/** 覆盖黑屏动画插值模式 */
-	UPROPERTY(EditAnywhere, Category = "Black Screen|Timing", meta = (EditCondition = "bOverrideBlackScreenTiming"))
-	ECommonLoadingAnimationMode BlackScreenAnimationModeOverride = ECommonLoadingAnimationMode::Linear;
+	// TODO: 迁移至 LoadingScreenSystem 枚举类型
+	// /** 覆盖黑屏动画插值模式 */
+	// UPROPERTY(EditAnywhere, Category = "Black Screen|Timing", meta = (EditCondition = "bOverrideBlackScreenTiming"))
+	// ECommonLoadingAnimationMode BlackScreenAnimationModeOverride = ECommonLoadingAnimationMode::Linear;
 };
 
 /**

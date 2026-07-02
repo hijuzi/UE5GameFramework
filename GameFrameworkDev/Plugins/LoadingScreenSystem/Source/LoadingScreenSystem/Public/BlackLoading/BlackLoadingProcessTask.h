@@ -39,15 +39,15 @@ public:
 
 	UE_API virtual bool ShouldShowLoadingScreen(FString& OutReason) const override;
 
+	/** 注册到 BlackLoadingManager，同时设置 Reason */
+	void RegisterWithManager(const FString& InReason);
+
+	/** 从 BlackLoadingManager 取消注册，同时设置 Reason */
+	void UnregisterFromManager(const FString& InReason);
+
 private:
 	/** 获取所属的 BlackLoadingManager */
 	UBlackLoadingManager* GetBlackLoadingManager() const;
-
-	/** 注册到 BlackLoadingManager */
-	void RegisterWithManager();
-
-	/** 从 BlackLoadingManager 取消注册 */
-	void UnregisterFromManager();
 
 	/** 黑屏加载界面显示的原因描述 */
 	FString Reason;

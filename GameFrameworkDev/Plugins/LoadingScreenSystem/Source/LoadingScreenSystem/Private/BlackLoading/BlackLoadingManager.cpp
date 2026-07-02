@@ -3,6 +3,7 @@
 #include "BlackLoading/BlackLoadingManager.h"
 #include "LoadingScreenInterface.h"
 #include "BlackLoading/BlackLoadingScreenWidget.h"
+#include "BlackLoading/BlackLoadingProcessTask.h"
 #include "LoadingScreenSettings.h"
 
 #include "Engine/GameInstance.h"
@@ -19,7 +20,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BlackLoadingManager)
 
 #include "LogLoadingScreenSystem.h"
-DEFINE_LOG_CATEGORY(LogBlackLoading);
 
 // Profiling category
 CSV_DEFINE_CATEGORY(BlackLoadingScreen, true);
@@ -68,6 +68,34 @@ void UBlackLoadingManager::UnregisterBlackLoadingProcessor(TScriptInterface<IBla
 	ExternalBlackLoadingProcessors.Remove(Interface.GetObject());
 }
 
+void UBlackLoadingManager::OpenBlackLoadingScreen(const FString& Reason, bool bAutoClose)
+{
+	bAutoCloseBlackLoadingScreen = bAutoClose;
+
+	if (BlackLoadingProcessTask)
+	{
+		// 已存在则重新注册（之前被 Close 时仅 UnregisterFromManager，UObject 仍存活）
+		BlackLoadingProcessTask->RegisterWithManager(Reason);
+	}
+	else
+	{
+		BlackLoadingProcessTask = UBlackLoadingProcessTask::CreateBlackLoadingProcessTask(
+			GetGameInstance(), Reason);
+	}
+	UpdateBlackLoadingScreen();
+	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 打开黑屏过渡界面: %s"), *Reason);
+}
+
+void UBlackLoadingManager::CloseBlackLoadingScreen(const FString& Reason)
+{
+	if (BlackLoadingProcessTask)
+	{
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 关闭黑屏过渡界面: %s"), *Reason);
+		BlackLoadingProcessTask->UnregisterFromManager(Reason);
+		UpdateBlackLoadingScreen();
+	}
+}
+
 void UBlackLoadingManager::UpdateBlackLoadingScreen()
 {
 	const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
@@ -84,7 +112,7 @@ void UBlackLoadingManager::UpdateBlackLoadingScreen()
 
 	if (bLogLoadingScreenStatus)
 	{
-		UE_LOG(LogBlackLoading, Log, TEXT("Loading screen showing: %d. Reason: %s"), bCurrentlyShowingBlackLoadingScreen ? 1 : 0, *DebugReasonForShowingOrHidingBlackLoadingScreen);
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 显示状态: %d, 原因: %s"), bCurrentlyShowingBlackLoadingScreen ? 1 : 0, *DebugReasonForShowingOrHidingBlackLoadingScreen);
 	}
 }
 
@@ -168,31 +196,31 @@ void UBlackLoadingManager::ShowBlackLoadingScreen()
 	// 引擎仍在显示其加载界面时无法显示加载界面。
 	if(IsShowingInitialBlackLoadingScreen())
 	{
-		UE_LOG(LogBlackLoading, Log, TEXT("在 'IsShowingInitialBlackLoadingScreen()' 为 true 时显示加载界面。"));
-		UE_LOG(LogBlackLoading, Log, TEXT("%s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] InitialLoadingScreen 显示中，等待其完成"));
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
 	}
 	else
 	{
-		UE_LOG(LogBlackLoading, Log, TEXT("在 'IsShowingInitialBlackLoadingScreen()' 为 false 时显示加载界面。"));
-		UE_LOG(LogBlackLoading, Log, TEXT("%s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 开始显示黑屏加载界面"));
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
 
 		UGameInstance* LocalGameInstance = GetGameInstance();
 		const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
 
-		UE_LOG(LogBlackLoading, Log, TEXT("Showing black loading screen. Reason: %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 显示黑屏加载界面，原因: %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
 
 		// 创建加载界面控件 — 优先使用配置的 UMG 子类，留空时回退到 UBlackLoadingScreenWidget 基类
 		TSubclassOf<UUserWidget> LoadingScreenWidgetClass = Settings->BlackLoadingScreenWidget.TryLoadClass<UUserWidget>();
 		if (!LoadingScreenWidgetClass)
 		{
-			UE_LOG(LogBlackLoading, Warning, TEXT("未配置 BlackLoadingScreenWidget 使用默认的 ULoadingProgressUserWidget。"));
+			UE_LOG(LogBlackLoading, Warning, TEXT("[黑屏加载界面] 未配置 Widget 类，使用默认 Widget"));
 			LoadingScreenWidgetClass = UBlackLoadingScreenWidget::StaticClass();
 		}
 
 		UUserWidget* UserWidget = UUserWidget::CreateWidgetInstance(*LocalGameInstance, LoadingScreenWidgetClass, NAME_None);
 		if (UBlackLoadingScreenWidget* LoadingScreenWidgetInstance = Cast<UBlackLoadingScreenWidget>(UserWidget))
 		{
-			UE_LOG(LogBlackLoading, Log, TEXT("UBlackLoadingScreenWidget 创建成功。"));
+			UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] Widget 创建成功"));
 
 			TimeBlackLoadingScreenShown = FPlatformTime::Seconds();
 
@@ -225,7 +253,7 @@ void UBlackLoadingManager::ShowBlackLoadingScreen()
 		}
 		else
 		{
-			UE_LOG(LogBlackLoading, Error, TEXT("无法创建 LoadingScreenUserWidget 实例。"));
+			UE_LOG(LogBlackLoading, Error, TEXT("[黑屏加载界面] Widget 实例创建失败"));
 		}
 	}
 }
@@ -239,13 +267,13 @@ void UBlackLoadingManager::HideBlackLoadingScreen()
 
 	if (IsShowingInitialBlackLoadingScreen())
 	{
-		UE_LOG(LogBlackLoading, Log, TEXT("在 'IsShowingInitialBlackLoadingScreen()' 为 true 时等待隐藏加载界面。"));
-		UE_LOG(LogBlackLoading, Log, TEXT("%s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] InitialLoadingScreen 显示中，等待隐藏"));
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
 	}
 	else
 	{
-		UE_LOG(LogBlackLoading, Log, TEXT("在 'IsShowingInitialBlackLoadingScreen()' 为 false 时隐藏加载界面。"));
-		UE_LOG(LogBlackLoading, Log, TEXT("%s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 开始隐藏黑屏加载界面"));
+		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
 
 		if (BlackLoadingScreenUserWidgetPtr)
 		{
@@ -262,7 +290,7 @@ void UBlackLoadingManager::FinishBlackLoadingScreenCleanup()
 {
 	StopBlockingInput();
 
-	UE_LOG(LogBlackLoading, Log, TEXT("完成黑屏加载界面最终清理. Reason: %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
+	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 最终清理完成，原因: %s"), *DebugReasonForShowingOrHidingBlackLoadingScreen);
 
 	RemoveBlackLoadingScreenWidgetFromViewport();
 
@@ -273,7 +301,7 @@ void UBlackLoadingManager::FinishBlackLoadingScreenCleanup()
 	CSV_EVENT(BlackLoadingScreen, TEXT("Hide"));
 
 	const double BlackLoadingScreenDuration = FPlatformTime::Seconds() - TimeBlackLoadingScreenShown;
-	UE_LOG(LogBlackLoading, Log, TEXT("LoadingScreen was visible for %.2fs"), BlackLoadingScreenDuration);
+	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 可见时长: %.2f 秒"), BlackLoadingScreenDuration);
 
 	bCurrentlyShowingBlackLoadingScreen = false;
 }
@@ -311,12 +339,19 @@ void UBlackLoadingManager::StopBlockingInput()
 
 void UBlackLoadingManager::HandleLoadingScreenLoadAnimationCompleted()
 {
-	UE_LOG(LogBlackLoading, Log, TEXT("黑屏加载界面淡入动画完成"));
+	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 淡入动画完成"));
+
+	// 自动关闭模式下，动画完成后反注册任务，使后续 Tick 自然关闭黑屏
+	if (bAutoCloseBlackLoadingScreen && BlackLoadingProcessTask)
+	{
+		CloseBlackLoadingScreen(TEXT("Load animation completed (auto close)"));
+		bAutoCloseBlackLoadingScreen = false;
+	}
 }
 
 void UBlackLoadingManager::HandleLoadingScreenUnloadAnimationCompleted()
 {
-	UE_LOG(LogBlackLoading, Log, TEXT("黑屏加载界面淡出动画完成"));
+	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 淡出动画完成"));
 	FinishBlackLoadingScreenCleanup();
 }
 

@@ -31,10 +31,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "CommonLoadingScreen",
-			"Enabled": true
-		},
-		{
 			"Name": "ControlFlows",
 			"Enabled": true
 		},
@@ -44,6 +40,10 @@
 		},
 		{
 			"Name": "PSOCacheSystem",
+			"Enabled": true
+		},
+		{
+			"Name": "LoadingScreenSystem",
 			"Enabled": true
 		}
 	],

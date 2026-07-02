@@ -1,10 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "LoadingScreenInterface.h"
-#include "Engine/World.h"
-#include "EngineUtils.h"
-#include "GameFramework/Actor.h"
-#include "LogLoadingScreenSystem.h"
 
 bool ILevelLoadingScreenInterface::ShouldShowLevelLoadingScreen(UObject* TestObject, FString& OutReason)
 {
@@ -19,39 +15,4 @@ bool ILevelLoadingScreenInterface::ShouldShowLevelLoadingScreen(UObject* TestObj
 	}
 
 	return false;
-}
-
-FLevelLoadingScreenOverrideConfig ILevelLoadingScreenInterface::GetLevelLoadingScreenOverrideConfig(const UObject* WorldContextObject)
-{
-	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
-	if (!World)
-	{
-		return FLevelLoadingScreenOverrideConfig();
-	}
-
-	// 遍历所有 Actor，查找实现了接口的对象
-	for (TActorIterator<AActor> It(World); It; ++It)
-	{
-		AActor* Actor = *It;
-		if (!Actor)
-		{
-			continue;
-		}
-
-		ILevelLoadingScreenInterface* Interface = Cast<ILevelLoadingScreenInterface>(Actor);
-		if (!Interface)
-		{
-			continue;
-		}
-
-		FLevelLoadingScreenOverrideConfig Config;
-		Interface->GetLevelLoadingScreenOverrideConfig(Config);
-
-		if (Config.bOverrideContent)
-		{
-			return Config;
-		}
-	}
-
-	return FLevelLoadingScreenOverrideConfig();
 }

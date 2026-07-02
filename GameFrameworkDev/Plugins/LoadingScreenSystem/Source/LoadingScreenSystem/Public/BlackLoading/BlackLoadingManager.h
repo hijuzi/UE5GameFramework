@@ -13,6 +13,7 @@ class FSubsystemCollectionBase;
 class IInputProcessor;
 class IBlackLoadingProcessInterface;
 class SWidget;
+class UBlackLoadingProcessTask;
 class UBlackLoadingScreenWidget;
 class UObject;
 class UWorld;
@@ -50,6 +51,14 @@ public:
 
 	/** 取消注册外部黑屏加载处理器 */
 	void UnregisterBlackLoadingProcessor(TScriptInterface<IBlackLoadingProcessInterface> Interface);
+
+	/** 打开黑屏加载界面（先销毁已有任务，再创建新任务） */
+	UFUNCTION(BlueprintCallable, Category = "LoadingScreen")
+	void OpenBlackLoadingScreen(const FString& Reason, bool bAutoClose = false);
+
+	/** 关闭黑屏加载界面 */
+	UFUNCTION(BlueprintCallable, Category = "LoadingScreen")
+	void CloseBlackLoadingScreen(const FString& Reason);
 
 	/** 黑屏加载界面可见性变化事件 */
 	FOnBlackLoadingScreenVisibilityChanged BlackLoadingScreenVisibilityChanged;
@@ -109,8 +118,15 @@ private:
 	/** 外部注册的黑屏加载处理器 */
 	TArray<TWeakInterfacePtr<IBlackLoadingProcessInterface>> ExternalBlackLoadingProcessors;
 
+	/** 由 OpenBlackLoadingScreen 创建的黑屏加载任务 */
+	UPROPERTY()
+	TObjectPtr<UBlackLoadingProcessTask> BlackLoadingProcessTask;
+
 	/** 当前正在显示加载界面 */
 	bool bCurrentlyShowingBlackLoadingScreen = false;
+
+	/** 是否自动关闭黑屏界面（开启后 BlackLoadingProcessTask 不再阻止关闭） */
+	bool bAutoCloseBlackLoadingScreen = false;
 
 	/** 显示加载界面的原因说明（调试用） */
 	FString DebugReasonForShowingOrHidingBlackLoadingScreen;

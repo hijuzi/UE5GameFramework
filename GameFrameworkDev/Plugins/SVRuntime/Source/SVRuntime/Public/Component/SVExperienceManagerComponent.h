@@ -4,7 +4,7 @@
 
 #include "Components/ActorComponent.h"
 #include "ControlFlowNode.h"
-#include "LoadingProcessInterface.h"
+#include "LevelLoading/LevelLoadingManager.h"
 
 #include "SVExperienceManagerComponent.generated.h"
 
@@ -18,11 +18,10 @@ class UCommonActivatableWidget;
  * USVExperienceManagerComponent
  *
  * ActorComponent，负责管理 Experience 加载后的前端流程和 UI 界面。
- * 实现 ILoadingProcessInterface，在流程进行期间控制 Loading Screen 的显示。
  * 使用 FControlFlow 管理流程步骤，从 SVBaseExperienceDefinition / SVLoginExperienceDefinition 读取 UI 类配置。
  */
 UCLASS(MinimalAPI)
-class USVExperienceManagerComponent : public UActorComponent, public ILoadingProcessInterface
+class USVExperienceManagerComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
@@ -34,10 +33,7 @@ public:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	//~ End UActorComponent Interface
 
-	//~ Begin ILoadingProcessInterface
-	virtual bool ShouldShowLoadingScreen(FString& OutReason) const override;
-	virtual void GetLoadingScreenOverrideConfig(FLoadingScreenOverrideConfig& OutConfig) const override;
-	//~ End ILoadingProcessInterface
+
 
 protected:
 	/** Experience 加载完成后的回调，读取 UI 配置并启动 FlowStep 流程。 */
@@ -67,14 +63,11 @@ protected:
 	/** Flow Step: 尝试显示主界面 */
 	void FlowStep_TryShowMainScreen(FControlFlowNodeRef SubFlow) { TryPushWidgetToLayer(SubFlow, MainScreenClass, false); }
 
-	/** 查询 WorldSettings，返回该关卡是否使用 Loading Screen */
-	bool ShouldUseLoadingScreen() const;
+	/** 获取 LevelLoadingManager 子系统 */
+	class ULevelLoadingManager* GetLevelLoadingManager() const;
 
-	/** 获取 LoadingScreenManager 子系统，可能返回 nullptr */
-	class ULoadingScreenManager* GetLoadingScreenManager() const;
-
-	/** 是否应该显示 Loading Screen */
-	bool bShouldShowLoadingScreen = true;
+	/** 检查 LevelLoadingScreen 是否正在显示 */
+	bool IsLevelLoadingScreenDisplayed() const;
 
 	/** 前端的 FControlFlow 实例，管理流程步骤 */
 	TSharedPtr<FControlFlow> FrontEndFlow;
@@ -83,11 +76,8 @@ protected:
 	FControlFlowNodePtr InProgressPressStartScreen;
 
 	// ---- BeginPlay 等待屏幕隐藏状态 ----
-	/** BeginPlay 等待期间 LoadingScreen 可见性委托 Handle */
+	/** BeginPlay 等待期间 LevelLoadingScreen 可见性委托 Handle */
 	FDelegateHandle BeginPlayWait_LSHandle;
-
-	/** BeginPlay 等待期间 BlackScreen 可见性委托 Handle */
-	FDelegateHandle BeginPlayWait_BSHandle;
 
 	/** BeginPlay 等待是否已完成（防重入） */
 	bool bBeginPlayWaitCompleted = false;
