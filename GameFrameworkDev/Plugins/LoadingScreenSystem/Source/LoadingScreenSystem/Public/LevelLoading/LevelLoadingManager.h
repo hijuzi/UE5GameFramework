@@ -11,8 +11,6 @@
 
 #include "LevelLoadingManager.generated.h"
 
-#define UE_API LOADINGSCREENSYSTEM_API
-
 /** 关卡加载界面可见性变化委托 */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLevelLoadingScreenVisibilityChanged, bool /* bIsVisible */);
 
@@ -256,5 +254,3 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UDataTable> CachedLevelLoadingScreenOverrideTable;
 };
-
-#undef UE_API

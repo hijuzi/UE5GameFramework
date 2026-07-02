@@ -7,8 +7,6 @@
 
 #include "LoadingScreenInterface.generated.h"
 
-#define UE_API LOADINGSCREENSYSTEM_API
-
 // 前向声明，避免循环依赖
 enum class ELoadingAnimationType : uint8;
 enum class ELoadingAnimationMode : uint8;
@@ -27,7 +25,7 @@ class ILevelLoadingScreenInterface
 
 public:
 	// 检查此对象是否实现了该接口，如果是则询问是否应显示关卡加载界面
-	static UE_API bool ShouldShowLevelLoadingScreen(UObject* TestObject, FString& OutReason);
+	static LOADINGSCREENSYSTEM_API bool ShouldShowLevelLoadingScreen(UObject* TestObject, FString& OutReason);
 
 	virtual bool ShouldShowLevelLoadingScreen(FString& OutReason) const
 	{
@@ -78,5 +76,3 @@ public:
 		return false;
 	}
 };
-
-#undef UE_API

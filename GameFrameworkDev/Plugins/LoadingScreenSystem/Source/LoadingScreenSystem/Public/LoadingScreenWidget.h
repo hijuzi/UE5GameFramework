@@ -3,6 +3,9 @@
 #pragma once
 
 #include "Blueprint/UserWidget.h"
+#include "Components/ProgressBar.h"
+#include "Components/TextBlock.h"
+#include "Components/Image.h"
 #include "Containers/Ticker.h"
 
 #include "LoadingScreenWidget.generated.h"
@@ -41,6 +44,18 @@ public:
 	FOnLoadingScreenWidgetAnimationCompleted OnUnloadAnimationCompleted;
 
 protected:
+	/** 蓝图子类可选绑定的进度条控件（BindWidgetOptional） */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "Loading Screen|Widget")
+	TObjectPtr<UProgressBar> ProgressBar;
+
+	/** 蓝图子类可选绑定的加载状态文本控件（BindWidgetOptional） */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "Loading Screen|Widget")
+	TObjectPtr<UTextBlock> LoadingText;
+
+	/** 蓝图子类可选绑定的背景图片控件（BindWidgetOptional） */
+	UPROPERTY(BlueprintReadOnly, meta = (BindWidgetOptional), Category = "Loading Screen|Widget")
+	TObjectPtr<UImage> BackgroundImage;
+
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;
 
