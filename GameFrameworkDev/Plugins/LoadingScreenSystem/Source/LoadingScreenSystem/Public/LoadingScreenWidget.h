@@ -52,9 +52,9 @@ protected:
 
 	ELoadingScreenAnimationState AnimationState = ELoadingScreenAnimationState::None;
 
-	float LoadAnimationDuration = 0.3f;
+	float LoadAnimationDuration = 0.2f;
 
-	float UnloadAnimationDuration = 0.3f;
+	float UnloadAnimationDuration = 0.2f;
     
 	float AnimationElapsed = 0.0f;
 

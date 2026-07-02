@@ -41,17 +41,10 @@ void ULevelLoadingScreenWidget::NativeConstruct()
 	ResolveConfig();
 	ApplyContentTypeVisibility();
 	LoadBackgroundImage();
-	// 视频类型时使用 MoviePlayer 播放视频
-	PlayLoadingVideo();
 }
 
 void ULevelLoadingScreenWidget::NativeDestruct()
 {
-	if (MovieFinishedTickerHandle.IsValid())
-	{
-		FTSTicker::GetCoreTicker().RemoveTicker(MovieFinishedTickerHandle);
-		MovieFinishedTickerHandle.Reset();
-	}
 	Super::NativeDestruct();
 }
 
@@ -147,8 +140,8 @@ void ULevelLoadingScreenWidget::StartLoadAnimation_Implementation()
 	Super::StartLoadAnimation_Implementation();
 	bLoadAnimationCompleted = false;
 	bLoadingCompleted = false;
-	// 开始加载动画时隐藏界面
-	SetRenderOpacity(0.0f);
+	// 视频类型时使用 MoviePlayer 播放视频
+	PlayLoadingVideo();
 
 	// 动画期间打开黑屏过渡界面（自动关闭模式：动画完成后黑屏自动消失）
 	if (UGameInstance* LocalGameInstance = GetGameInstance())
@@ -180,38 +173,9 @@ void ULevelLoadingScreenWidget::StartUnloadAnimation_Implementation()
 
 void ULevelLoadingScreenWidget::FinishLoadAnimation_Implementation()
 {
-	Super::FinishLoadAnimation_Implementation();
-	
 	bLoadAnimationCompleted = true;
-
-	// 加载动画结束后恢复正常显示
-	SetRenderOpacity(1.0f);
-
-	if (ContentType == ELoadingScreenContentType::Video)
-	{
-		GetMoviePlayer()->PlayMovie();
-
-		// PIE 下 MoviePlayer 实际不播放视频，用 MinimumDisplayTimeSecs 作为 Fallback 延时
-		// 使用 CoreTicker 而非 World Timer，确保关卡加载期间也能正常触发
-		if (MinimumDisplayTimeSecs > 0.0f)
-		{
-			MovieFinishedTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
-				FTickerDelegate::CreateWeakLambda(this, [this](float) -> bool
-				{
-					TryCancelMovie();
-					return false; // 一次性执行后自动注销
-				}),
-				MinimumDisplayTimeSecs);
-			UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 视频Fallback Ticker已设置: %.2fs"), MinimumDisplayTimeSecs);
-		}
-		else
-		{
-			// 无最小显示时长配置，直接结束
-			OnLoadingMovieFinished();
-		}
-	}
-
 	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 淡入动画完成"));
+	Super::FinishLoadAnimation_Implementation();
 }
 
 void ULevelLoadingScreenWidget::TickProgressUpdate(float InDeltaTime)
@@ -436,6 +400,26 @@ void ULevelLoadingScreenWidget::PlayLoadingVideo()
 
 	GetMoviePlayer()->SetupLoadingScreen(LoadingScreen);
 	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] MoviePlayer 设置完成"));
+	GetMoviePlayer()->PlayMovie();
+
+	// PIE 下 MoviePlayer 实际不播放视频，用 MinimumDisplayTimeSecs 作为 Fallback 延时
+	// 使用 CoreTicker 而非 World Timer，确保关卡加载期间也能正常触发
+	if (MinimumDisplayTimeSecs > 0.0f)
+	{
+		MovieFinishedTickerHandle = FTSTicker::GetCoreTicker().AddTicker(
+			FTickerDelegate::CreateWeakLambda(this, [this](float) -> bool
+			{
+				TryCancelMovie();
+				return false; // 一次性执行后自动注销
+			}),
+			MinimumDisplayTimeSecs);
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 视频Fallback Ticker已设置: %.2fs"), MinimumDisplayTimeSecs);
+	}
+	else
+	{
+		// 无最小显示时长配置，直接结束
+		OnLoadingMovieFinished();
+	}
 }
 
 void ULevelLoadingScreenWidget::OnLoadingMovieFinished()

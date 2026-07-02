@@ -246,9 +246,6 @@ private:
 	/** 关卡加载界面当前是否正在显示 */
 	bool bCurrentlyShowingLevelLoadingScreen = false;
 
-	/** 关卡加载界面是否正在执行隐藏流程（卸载动画播放中），防止 Tick 重复触发 HideLevelLoadingScreen */
-	bool bIsHidingLevelLoadingScreen = false;
-
 	/** 最后一次不再需要显示加载界面的时间（用于额外保持） */
 	double TimeLoadingScreenLastDismissed = -1.0;
 

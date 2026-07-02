@@ -48,11 +48,13 @@ bool ULoadingScreenWidget::IsScreenAnimationPlaying() const
 
 void ULoadingScreenWidget::FinishLoadAnimation_Implementation()
 {
+	AnimationState = ELoadingScreenAnimationState::None;
 	OnLoadAnimationCompleted.Broadcast();
 }
 
 void ULoadingScreenWidget::FinishUnloadAnimation_Implementation()
 {
+	AnimationState = ELoadingScreenAnimationState::None;
 	OnUnloadAnimationCompleted.Broadcast();
 }
 
@@ -69,8 +71,6 @@ void ULoadingScreenWidget::TickAnimation(float InDeltaTime)
 	if (AnimationElapsed >= Duration)
 	{
 		const ELoadingScreenAnimationState CompletedState = AnimationState;
-		AnimationState = ELoadingScreenAnimationState::None;
-
 		if (CompletedState == ELoadingScreenAnimationState::LoadAnimation)
 		{
 			FinishLoadAnimation();

@@ -82,7 +82,6 @@ void UBlackLoadingManager::OpenBlackLoadingScreen(const FString& Reason, bool bA
 		BlackLoadingProcessTask = UBlackLoadingProcessTask::CreateBlackLoadingProcessTask(
 			GetGameInstance(), Reason);
 	}
-	UpdateBlackLoadingScreen();
 	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 打开黑屏过渡界面: %s"), *Reason);
 }
 
@@ -92,7 +91,6 @@ void UBlackLoadingManager::CloseBlackLoadingScreen(const FString& Reason)
 	{
 		UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 关闭黑屏过渡界面: %s"), *Reason);
 		BlackLoadingProcessTask->UnregisterFromManager(Reason);
-		UpdateBlackLoadingScreen();
 	}
 }
 
@@ -277,6 +275,7 @@ void UBlackLoadingManager::HideBlackLoadingScreen()
 
 		if (BlackLoadingScreenUserWidgetPtr)
 		{
+			bCurrentlyShowingBlackLoadingScreen = false;
 			BlackLoadingScreenUserWidgetPtr->StartUnloadAnimation();
 		}
 		else

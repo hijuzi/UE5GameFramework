@@ -126,7 +126,7 @@ void UBlackLoadingScreenWidget::FinishLoadAnimation_Implementation()
 	{
 		MaskOverlay->SetRenderOpacity(1.0f);
 	}
-	OnLoadAnimationCompleted.Broadcast();
+	Super::FinishLoadAnimation_Implementation();
 }
 
 void UBlackLoadingScreenWidget::FinishUnloadAnimation_Implementation()
@@ -135,7 +135,7 @@ void UBlackLoadingScreenWidget::FinishUnloadAnimation_Implementation()
 	{
 		MaskOverlay->SetRenderOpacity(0.0f);
 	}
-	OnUnloadAnimationCompleted.Broadcast();
+	Super::FinishUnloadAnimation_Implementation();
 }
 
 float UBlackLoadingScreenWidget::ApplyEasing(float Alpha, ELoadingScreenAnimationState State)

@@ -148,10 +148,10 @@ void ULevelLoadingManager::SetLoadingPhase(ELevelLoadingPhase NewPhase)
 	CurrentLoadingPhase = NewPhase;
 	PhaseStartTime = FPlatformTime::Seconds();
 
-	// 进入 WorldInit 时暂停世界，进入 Completed 时恢复
+	// 进入 Finalizing 时暂停世界，进入 Completed 时恢复
 	if (UWorld* World = GetWorld())
 	{
-		if (NewPhase == ELevelLoadingPhase::WorldInit)
+		if (NewPhase == ELevelLoadingPhase::Finalizing)
 		{
 			UGameplayStatics::SetGamePaused(World, true);
 		}
@@ -373,6 +373,12 @@ bool ULevelLoadingManager::CheckForAnyNeedToShowLevelLoadingScreen()
 	if (GetDefault<ULoadingScreenSettings>()->bForceLevelLoadingScreenVisible)
 	{
 		DebugReasonForShowingOrHidingLevelLoadingScreen = FString(TEXT("bForceLevelLoadingScreenVisible 为 true"));
+		return true;
+	}
+
+	if(IsCurrentlyLoadingMap())
+	{
+		DebugReasonForShowingOrHidingLevelLoadingScreen = FString(TEXT("当前处于关卡加载流程中"));
 		return true;
 	}
 
@@ -607,7 +613,6 @@ void ULevelLoadingManager::ShowLevelLoadingScreen()
 			TimeLevelLoadingScreenShown = FPlatformTime::Seconds();
 
 			bCurrentlyShowingLevelLoadingScreen = true;
-			bIsHidingLevelLoadingScreen = false;
 			LevelLoadingScreenUserWidgetPtr = LoadingScreenWidgetInstance;
 			LevelLoadingScreenWidget = UserWidget->TakeWidget();
 
@@ -648,23 +653,26 @@ void ULevelLoadingManager::HideLevelLoadingScreen()
 		return;
 	}
 
-	// 防止 Tick 重复进入：卸载动画播放期间 bCurrentlyShowingLevelLoadingScreen 仍为 true，
-	// 而 LevelLoadingScreenUserWidgetPtr 也仍然有效，会导致每帧都重复调用 StartUnloadAnimation()
-	// 和 OpenBlackLoadingScreen()，产生 BlackScreen "(reopened)" 的日志噪音和 Widget 反复创建开销
-	if (bIsHidingLevelLoadingScreen)
+	if (IsShowingInitialLevelLoadingScreen())
 	{
-		return;
-	}
-
-	if (LevelLoadingScreenUserWidgetPtr)
-	{
-		bIsHidingLevelLoadingScreen = true;
-
-		LevelLoadingScreenUserWidgetPtr->StartUnloadAnimation();
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] InitialLoadingScreen 显示中，等待隐藏"));
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] %s"), *DebugReasonForShowingOrHidingLevelLoadingScreen);
 	}
 	else
 	{
-		FinishLevelLoadingScreenCleanup();
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 开始隐藏关卡加载界面"));
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] %s"), *DebugReasonForShowingOrHidingLevelLoadingScreen);
+
+		if (LevelLoadingScreenUserWidgetPtr)
+		{
+			bCurrentlyShowingLevelLoadingScreen = false;
+
+			LevelLoadingScreenUserWidgetPtr->StartUnloadAnimation();
+		}
+		else
+		{
+			FinishLevelLoadingScreenCleanup();
+		}
 	}
 }
 
@@ -672,7 +680,7 @@ void ULevelLoadingManager::FinishLevelLoadingScreenCleanup()
 {
 	StopBlockingInput();
 
-	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 最终清理完成"));
+	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 最终清理完成，原因: %s"), *DebugReasonForShowingOrHidingLevelLoadingScreen);
 
 	ChangePerformanceSettings(/*bEnableLevelLoadingScreen=*/ false);
 
@@ -683,7 +691,6 @@ void ULevelLoadingManager::FinishLevelLoadingScreenCleanup()
 	LevelLoadingScreenVisibilityChanged.Broadcast(/*bIsVisible=*/ false);
 
 	bCurrentlyShowingLevelLoadingScreen = false;
-	bIsHidingLevelLoadingScreen = false;
 }
 
 void ULevelLoadingManager::RemoveLevelWidgetFromViewport()
@@ -776,89 +783,52 @@ void ULevelLoadingManager::HandleLevelLoadingScreenUnloadAnimationCompleted()
 
 const FLevelLoadingScreenTableRow* ULevelLoadingManager::FindLevelLoadingScreenTableRow(const FString& MapName)
 {
-	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] ===== 开始查找关卡加载界面配置 ======"));
-	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] 输入 MapName: %s"), *MapName);
-
 	const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
 	if (!Settings)
 	{
-		UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面|查表] Settings 为 nullptr，返回 nullptr"));
+		UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面|查表] Settings 为 nullptr"));
 		return nullptr;
 	}
 
 	if (Settings->LevelLoadingScreenOverrideTable.IsNull())
 	{
-		UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面|查表] LevelLoadingScreenOverrideTable 为空 (IsNull=true)，跳过查表，返回 nullptr"));
 		return nullptr;
 	}
-
-	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] 数据表路径: %s"), *Settings->LevelLoadingScreenOverrideTable.ToString());
 
 	// 懒加载缓存 DataTable，避免每次查表都 TryLoad
 	if (!CachedLevelLoadingScreenOverrideTable)
 	{
-		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] 缓存未命中，开始加载数据表..."));
 		CachedLevelLoadingScreenOverrideTable = Cast<UDataTable>(Settings->LevelLoadingScreenOverrideTable.TryLoad());
 		if (!CachedLevelLoadingScreenOverrideTable)
 		{
-			UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面|查表] 数据表加载失败 (TryLoad+Cast 返回 nullptr): %s"), *Settings->LevelLoadingScreenOverrideTable.ToString());
+			UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面|查表] 数据表加载失败: %s"), *Settings->LevelLoadingScreenOverrideTable.ToString());
 			return nullptr;
 		}
-		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] 数据表加载成功，已缓存"));
-	}
-	else
-	{
-		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] 命中缓存，跳过加载"));
 	}
 
 	UDataTable* DataTable = CachedLevelLoadingScreenOverrideTable.Get();
 	if (!DataTable)
 	{
-		UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面|查表] CachedLevelLoadingScreenOverrideTable.Get() 返回 nullptr"));
 		return nullptr;
 	}
 
 	// 遍历 DataTable 的所有行，匹配关卡名
 	const FString MapAssetName = FPaths::GetBaseFilename(MapName);
-	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] 提取的关卡资源名: %s"), *MapAssetName);
-
 	const FLevelLoadingScreenTableRow* FoundRow = nullptr;
-	int32 RowCount = 0;
-	TArray<FString> MatchedAttempts;
 
 	static const FString ContextStr(TEXT("ULevelLoadingManager::FindLevelLoadingScreenTableRow"));
 	DataTable->ForeachRow<FLevelLoadingScreenTableRow>(ContextStr,
-		[&MapAssetName, &FoundRow, &RowCount, &MatchedAttempts](const FName& Key, const FLevelLoadingScreenTableRow& Value)
+		[&MapAssetName, &FoundRow](const FName& /*Key*/, const FLevelLoadingScreenTableRow& Value)
 		{
-			RowCount++;
-			const FString RowLevelAssetName = Value.LevelMap.GetAssetName();
-			const bool bMatch = RowLevelAssetName.Equals(MapAssetName, ESearchCase::IgnoreCase);
-
-			if (bMatch)
+			if (Value.LevelMap.GetAssetName().Equals(MapAssetName, ESearchCase::IgnoreCase))
 			{
-				UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] ★ 匹配成功! Row[%d] Key='%s', LevelMap='%s' ←→ 目标='%s'"),
-					RowCount, *Key.ToString(), *RowLevelAssetName, *MapAssetName);
 				FoundRow = &Value;
-			}
-			else
-			{
-				UE_LOG(LogLevelLoading, Verbose, TEXT("[关卡加载界面|查表]   不匹配 Row[%d] Key='%s', LevelMap='%s' != 目标='%s'"),
-					RowCount, *Key.ToString(), *RowLevelAssetName, *MapAssetName);
 			}
 		});
 
-	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] 遍历完成: 总行数=%d, 查找目标=%s"), RowCount, *MapAssetName);
-
-	if (FoundRow)
+	if (!FoundRow)
 	{
-		const FString FoundAssetName = FoundRow->LevelMap.GetAssetName();
-		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] ✓ 找到匹配行! LevelMap=%s, OverrideConfig有效性检查通过"), *FoundAssetName);
-		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] ===== 查找结束 (命中) ====="));
-	}
-	else
-	{
-		UE_LOG(LogLevelLoading, Warning, TEXT("[关卡加载界面|查表] ✗ 未找到匹配行。遍历了 %d 行，未匹配到 '%s'"), RowCount, *MapAssetName);
-		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] ===== 查找结束 (未命中) ====="));
+		UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面|查表] 未找到匹配: '%s'"), *MapAssetName);
 	}
 
 	return FoundRow;

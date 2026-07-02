@@ -167,4 +167,5 @@ private:
 
 	/** 视频时长 Fallback Ticker 句柄（使用 CoreTicker，关卡加载期间也能触发） */
 	FTSTicker::FDelegateHandle MovieFinishedTickerHandle;
+
 };
