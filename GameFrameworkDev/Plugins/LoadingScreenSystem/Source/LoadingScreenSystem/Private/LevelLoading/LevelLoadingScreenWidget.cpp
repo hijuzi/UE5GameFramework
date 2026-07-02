@@ -55,7 +55,6 @@ void ULevelLoadingScreenWidget::ReleaseSlateResources(bool bReleaseChildren)
 	ProgressOverlay.Reset();
 	BackgroundImageWidget.Reset();
 	VideoOverlay.Reset();
-	VideoBackgroundBorder.Reset();
 	VideoImageCanvas.Reset();
 	VideoImageWidget.Reset();
 }
@@ -95,14 +94,6 @@ TSharedRef<SWidget> ULevelLoadingScreenWidget::RebuildWidget()
 		.VAlign(VAlign_Fill)
 		[
 			SAssignNew(VideoOverlay, SOverlay)
-			// 视频黑底背景，全局展开
-			+ SOverlay::Slot()
-			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Fill)
-			[
-				SAssignNew(VideoBackgroundBorder, SBorder)
-				.BorderBackgroundColor(FLinearColor::Black)
-			]
 			// 视频/图标 Canvas，全局展开，内部自由布局
 			+ SOverlay::Slot()
 			.HAlign(HAlign_Fill)
@@ -143,6 +134,12 @@ void ULevelLoadingScreenWidget::StartLoadAnimation_Implementation()
 	// 视频类型时使用 MoviePlayer 播放视频
 	PlayLoadingVideo();
 
+	// 动画期间隐藏进度层，黑屏过渡后再显示
+	if (ProgressOverlay.IsValid())
+	{
+		ProgressOverlay->SetVisibility(EVisibility::Collapsed);
+	}
+
 	// 动画期间打开黑屏过渡界面（自动关闭模式：动画完成后黑屏自动消失）
 	if (UGameInstance* LocalGameInstance = GetGameInstance())
 	{
@@ -175,6 +172,13 @@ void ULevelLoadingScreenWidget::FinishLoadAnimation_Implementation()
 {
 	bLoadAnimationCompleted = true;
 	UE_LOG(LogLevelLoading, Log, TEXT("[关卡加载界面] 淡入动画完成"));
+
+	// 动画完成后恢复进度层显示
+	if (ProgressOverlay.IsValid())
+	{
+		ProgressOverlay->SetVisibility(EVisibility::Visible);
+	}
+
 	Super::FinishLoadAnimation_Implementation();
 }
 

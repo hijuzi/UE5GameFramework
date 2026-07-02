@@ -91,7 +91,6 @@ private:
 	TSharedPtr<SOverlay> ProgressOverlay;
 	TSharedPtr<SImage> BackgroundImageWidget;
 	TSharedPtr<SOverlay> VideoOverlay;
-	TSharedPtr<SBorder> VideoBackgroundBorder;
 	TSharedPtr<SCanvas> VideoImageCanvas;
 	TSharedPtr<SImage> VideoImageWidget;
 
