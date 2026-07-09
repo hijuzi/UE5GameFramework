@@ -13,7 +13,7 @@
  *
  * GameCore 框架默认 GameMode，预设核心类：
  * - HUDClass = AGameCoreHUD
- * - GameStateClass = ASVGameState
+ * - GameStateClass = ASvGameStateBase
  * - PlayerControllerClass = AGameCorePlayerController
  *
  * 项目可继承此类以扩展自定义逻辑。

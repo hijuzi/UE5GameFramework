@@ -20,7 +20,7 @@ class UObject;
  *  此类主要用于调试渲染。
  */
 UCLASS(Config = Game)
-class AGameCoreHUD : public AHUD
+class GAMECOREFRAMEWORK_API AGameCoreHUD : public AHUD
 {
 	GENERATED_BODY()
 

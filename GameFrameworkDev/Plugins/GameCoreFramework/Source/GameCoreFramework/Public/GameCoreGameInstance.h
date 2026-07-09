@@ -22,7 +22,7 @@ class UGameCoreGameInstance : public UGameInstance
 	GENERATED_BODY()
 
 public:
-	UGameCoreGameInstance(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
+	UE_API UGameCoreGameInstance(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
 	/** 本地玩家添加时广播 */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnGameCorePlayerAdded, ULocalPlayer* /*NewPlayer*/);

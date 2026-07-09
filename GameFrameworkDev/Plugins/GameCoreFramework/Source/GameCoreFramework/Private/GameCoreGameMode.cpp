@@ -11,6 +11,6 @@ AGameCoreGameMode::AGameCoreGameMode(const FObjectInitializer& ObjectInitializer
 {
 	HUDClass = AGameCoreHUD::StaticClass();
 	PlayerControllerClass = AGameCorePlayerController::StaticClass();
-	// GameStateClass 由子类或蓝图设置（如 ASVGameState），
+	// GameStateClass 由子类或蓝图设置（如 ASvGameStateBase），
 	// 避免 GameCoreFramework 直接依赖 SVRuntime 造成循环引用。
 }

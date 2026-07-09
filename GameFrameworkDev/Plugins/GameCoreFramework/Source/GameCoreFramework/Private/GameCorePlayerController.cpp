@@ -8,6 +8,7 @@
 AGameCorePlayerController::AGameCorePlayerController(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	bShowMouseCursor = true;
 }
 
 void AGameCorePlayerController::ReceivedPlayer()
