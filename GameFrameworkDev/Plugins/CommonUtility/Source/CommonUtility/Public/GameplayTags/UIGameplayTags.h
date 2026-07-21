@@ -5,7 +5,7 @@
 #include "NativeGameplayTags.h"
 
 /**
- * GameUI 相关 GameplayTag（公开）。
+ * UI 相关 GameplayTag（公开）。
  * 外部请统一通过 #include "GameplayTags/CommonGameplayTags.h" 引入。
  */
 namespace CommonGameplayTags
@@ -24,5 +24,5 @@ namespace CommonGameplayTags
 	//  UI Action Tags
 	// ========================================================================
 
-	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GAMEUI_ACTION_ESCAPE);
+	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_UI_ACTION_ESCAPE);
 };

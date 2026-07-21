@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "GameplayTags/GameUIGameplayTags.h"
+#include "GameplayTags/UIGameplayTags.h"
 
 namespace CommonGameplayTags
 {
@@ -32,7 +32,7 @@ namespace CommonGameplayTags
 	//  UI Action Tags
 	// ========================================================================
 
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(TAG_GAMEUI_ACTION_ESCAPE,
-		"GameUI.Action.Escape",
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(TAG_UI_ACTION_ESCAPE,
+		"UI.Action.Escape",
 		"Escape / 暂停键动作");
 };

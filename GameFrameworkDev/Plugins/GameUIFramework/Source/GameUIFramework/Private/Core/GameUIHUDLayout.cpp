@@ -42,7 +42,7 @@ void UGameUIHUDLayout::NativeOnInitialized()
 
 	// 1) 注册 Escape 动作绑定
 	RegisterUIActionBinding(FBindUIActionArgs(
-		FUIActionTag::ConvertChecked(TAG_GAMEUI_ACTION_ESCAPE),
+		FUIActionTag::ConvertChecked(TAG_UI_ACTION_ESCAPE),
 		false,
 		FSimpleDelegate::CreateUObject(this, &ThisClass::HandleEscapeAction)));
 
@@ -57,6 +57,8 @@ void UGameUIHUDLayout::NativeOnInitialized()
 
 void UGameUIHUDLayout::NativeDestruct()
 {
+	Super::NativeDestruct();
+
 	// 对称清理：解绑所有委托 + 取消未执行的 Ticker
 	IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
 	DeviceMapper.GetOnInputDeviceConnectionChange().RemoveAll(this);
@@ -67,8 +69,6 @@ void UGameUIHUDLayout::NativeDestruct()
 		FTSTicker::GetCoreTicker().RemoveTicker(RequestProcessControllerStateHandle);
 		RequestProcessControllerStateHandle.Reset();
 	}
-
-	Super::NativeDestruct();
 }
 
 // ============================================================================

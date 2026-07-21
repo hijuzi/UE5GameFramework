@@ -25,6 +25,10 @@ public:
 
 	//~ Begin APlayerController Interface
 	UE_API virtual void ReceivedPlayer() override;
+	UE_API virtual void SetPawn(APawn* InPawn) override;
+	UE_API virtual void OnRep_PlayerState() override;
+	UE_API virtual void OnPossess(APawn* InPawn) override;
+	UE_API virtual void OnUnPossess() override;
 	//~ End APlayerController Interface
 };
 

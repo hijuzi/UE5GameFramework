@@ -151,7 +151,7 @@ void ULevelLoadingManager::SetLoadingPhase(ELevelLoadingPhase NewPhase)
 	// 进入 Finalizing 时暂停世界，进入 Completed 时恢复
 	if (UWorld* World = GetWorld())
 	{
-		if (NewPhase == ELevelLoadingPhase::Finalizing)
+		if (NewPhase == ELevelLoadingPhase::WorldInit)
 		{
 			UGameplayStatics::SetGamePaused(World, true);
 		}

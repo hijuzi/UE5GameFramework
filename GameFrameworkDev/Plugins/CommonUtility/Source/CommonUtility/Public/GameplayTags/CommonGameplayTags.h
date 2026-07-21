@@ -5,34 +5,20 @@
 #include "NativeGameplayTags.h"
 
 /**
- * 项目中所有 GameplayTag 的统一入口。
- * 内部按类别拆分到独立文件管理（位于 Private/GameplayTags/ 下）：
- *   - GameUIGameplayTags.h    UI 相关 Tag
- *   - PlatformGameplayTags.h  Platform 相关 Tag
+ * 项目中所有 GameplayTag 的统一入口（伞头文件）。
+ * 内部按类别拆分到独立文件管理（位于 Public/GameplayTags/ 下）：
+ *   - UIGameplayTags.h           UI 相关 Tag
+ *   - PlatformGameplayTags.h     Platform 相关 Tag
+ *   - GameplayCueGameplayTags.h  GameplayCue 相关 Tag
+ *   - RandomGameplayTags.h       随机/伪随机相关 Tag
  *
- * 使用方式：直接引用 CommonGameplayTags::TAG_XXX 即可，无需魔法字符串。
+ * 使用方式：
+ *   #include "GameplayTags/CommonGameplayTags.h"  // 仅需引入此文件
+ *   直接使用 CommonGameplayTags::TAG_XXX 即可，无需魔法字符串。
  */
-namespace CommonGameplayTags
-{
-	// ========================================================================
-	//  UI Layer Tags（自上而下层级，用于 CommonUI 层级管理层）
-	// ========================================================================
+#include "GameplayTags/UIGameplayTags.h"
+#include "GameplayTags/PlatformGameplayTags.h"
+#include "GameplayTags/GameplayCueGameplayTags.h"
+#include "GameplayTags/RandomGameplayTags.h"
 
-	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GAMEUI_LAYER_MASK);
-	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GAMEUI_LAYER_WINDOW);
-	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GAMEUI_LAYER_FULLSCREENMENU);
-	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GAMEUI_LAYER_GAMEMENU);
-	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GAMEUI_LAYER_HUD);
-
-	// ========================================================================
-	//  UI Action Tags
-	// ========================================================================
-
-	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_GAMEUI_ACTION_ESCAPE);
-
-	// ========================================================================
-	//  Platform Tags
-	// ========================================================================
-
-	COMMONUTILITY_API UE_DECLARE_GAMEPLAY_TAG_EXTERN(TAG_PLATFORM_TRAIT_INPUT_PRIMARILYCONTROLLER);
-};
+// 本文件不再直接声明任何 Tag，所有声明由上述子文件负责。
