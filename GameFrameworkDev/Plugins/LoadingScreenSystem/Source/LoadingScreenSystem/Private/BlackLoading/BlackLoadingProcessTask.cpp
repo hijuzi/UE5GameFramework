@@ -10,7 +10,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BlackLoadingProcessTask)
 
-/*static*/ UBlackLoadingProcessTask* UBlackLoadingProcessTask::CreateBlackLoadingProcessTask(UObject* WorldContextObject, const FString& ShowLoadingScreenReason)
+/*static*/ UBlackLoadingProcessTask* UBlackLoadingProcessTask::CreateBlackLoadingProcessTask(UObject* WorldContextObject, const FString& ShowLoadingScreenReason, const FBlackLoadingScreenOverrideConfig& OverrideConfig)
 {
 	UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull);
 	UGameInstance* GameInstance = World ? World->GetGameInstance() : nullptr;
@@ -19,7 +19,7 @@
 	if (BlackLoadingManager)
 	{
 		UBlackLoadingProcessTask* NewLoadingTask = NewObject<UBlackLoadingProcessTask>(BlackLoadingManager);
-		NewLoadingTask->RegisterWithManager(ShowLoadingScreenReason);
+		NewLoadingTask->RegisterWithManager(ShowLoadingScreenReason, OverrideConfig);
 
 		return NewLoadingTask;
 	}
@@ -42,13 +42,13 @@ UBlackLoadingManager* UBlackLoadingProcessTask::GetBlackLoadingManager() const
 	return Cast<UBlackLoadingManager>(GetOuter());
 }
 
-void UBlackLoadingProcessTask::RegisterWithManager(const FString& InReason)
+void UBlackLoadingProcessTask::RegisterWithManager(const FString& InReason, const FBlackLoadingScreenOverrideConfig& OverrideConfig)
 {
 	Reason = InReason;
 
 	if (UBlackLoadingManager* BlackLoadingManager = GetBlackLoadingManager())
 	{
-		BlackLoadingManager->RegisterBlackLoadingProcessor(this);
+		BlackLoadingManager->RegisterBlackLoadingProcessor(this, OverrideConfig);
 		bIsComplete = false;
 	}
 }

@@ -35,6 +35,8 @@ public:
 	TSharedPtr<SOverlay> GetContentOverlay() const { return ContentOverlay; }
 
 protected:
+	/** 解析黑屏加载配置：优先 BlackLoadingProcessTask 覆盖，否则全局 Settings */
+	void ResolveConfig();
 	//~ UUserWidget interface
 	virtual void NativeConstruct() override;
 	virtual void NativeDestruct() override;

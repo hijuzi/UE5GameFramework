@@ -58,9 +58,9 @@ bool UBlackLoadingManager::Tick(float DeltaTime)
 	return true; // 保持 Ticker 持续运行
 }
 
-void UBlackLoadingManager::RegisterBlackLoadingProcessor(TScriptInterface<IBlackLoadingProcessInterface> Interface)
+void UBlackLoadingManager::RegisterBlackLoadingProcessor(TScriptInterface<IBlackLoadingProcessInterface> Interface, const FBlackLoadingScreenOverrideConfig& OverrideConfig)
 {
-	ExternalBlackLoadingProcessors.Add(Interface.GetObject());
+	ExternalBlackLoadingProcessors.Add(Interface.GetObject(), OverrideConfig);
 }
 
 void UBlackLoadingManager::UnregisterBlackLoadingProcessor(TScriptInterface<IBlackLoadingProcessInterface> Interface)
@@ -68,19 +68,19 @@ void UBlackLoadingManager::UnregisterBlackLoadingProcessor(TScriptInterface<IBla
 	ExternalBlackLoadingProcessors.Remove(Interface.GetObject());
 }
 
-void UBlackLoadingManager::OpenBlackLoadingScreen(const FString& Reason, bool bAutoClose)
+void UBlackLoadingManager::OpenBlackLoadingScreen(const FString& Reason, bool bAutoClose, const FBlackLoadingScreenOverrideConfig& OverrideConfig)
 {
 	bAutoCloseBlackLoadingScreen = bAutoClose;
 
 	if (BlackLoadingProcessTask)
 	{
 		// 已存在则重新注册（之前被 Close 时仅 UnregisterFromManager，UObject 仍存活）
-		BlackLoadingProcessTask->RegisterWithManager(Reason);
+		BlackLoadingProcessTask->RegisterWithManager(Reason, OverrideConfig);
 	}
 	else
 	{
 		BlackLoadingProcessTask = UBlackLoadingProcessTask::CreateBlackLoadingProcessTask(
-			GetGameInstance(), Reason);
+			GetGameInstance(), Reason, OverrideConfig);
 	}
 	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 打开黑屏过渡界面: %s"), *Reason);
 }
@@ -143,9 +143,9 @@ bool UBlackLoadingManager::CheckForAnyNeedToShowBlackLoadingScreen()
 	}
 
 	// 询问外部注册的加载处理器
-	for (const TWeakInterfacePtr<IBlackLoadingProcessInterface>& Processor : ExternalBlackLoadingProcessors)
+	for (const auto& Pair : ExternalBlackLoadingProcessors)
 	{
-		if (IBlackLoadingProcessInterface::ShouldShowLoadingScreen(Processor.GetObject(), /*out*/ DebugReasonForShowingOrHidingBlackLoadingScreen))
+		if (IBlackLoadingProcessInterface::ShouldShowLoadingScreen(Pair.Key.Get(), /*out*/ DebugReasonForShowingOrHidingBlackLoadingScreen))
 		{
 			return true;
 		}
@@ -339,6 +339,9 @@ void UBlackLoadingManager::HandleLoadingScreenLoadAnimationCompleted()
 {
 	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 淡入动画完成"));
 
+	// 广播蓝图委托
+	OnLoadAnimationCompleted.Broadcast();
+
 	// 自动关闭模式下，动画完成后反注册任务，使后续 Tick 自然关闭黑屏
 	if (bAutoCloseBlackLoadingScreen && BlackLoadingProcessTask)
 	{
@@ -350,7 +353,39 @@ void UBlackLoadingManager::HandleLoadingScreenLoadAnimationCompleted()
 void UBlackLoadingManager::HandleLoadingScreenUnloadAnimationCompleted()
 {
 	UE_LOG(LogBlackLoading, Log, TEXT("[黑屏加载界面] 淡出动画完成"));
+
+	// 广播蓝图委托
+	OnUnloadAnimationCompleted.Broadcast();
+
 	FinishBlackLoadingScreenCleanup();
+}
+
+FBlackLoadingScreenOverrideConfig UBlackLoadingManager::GetCurrentBlackLoadingOverrideConfig() const
+{
+	// 优先从 BlackLoadingProcessTask 关联的覆盖配置获取
+	if (IsValid(BlackLoadingProcessTask))
+	{
+		const FBlackLoadingScreenOverrideConfig* FoundConfig = ExternalBlackLoadingProcessors.Find(BlackLoadingProcessTask);
+		if (FoundConfig)
+		{
+			return *FoundConfig;
+		}
+	}
+
+	// 回退：读取 ULoadingScreenSettings 的全局配置并转换
+	const ULoadingScreenSettings* Settings = GetDefault<ULoadingScreenSettings>();
+	if (Settings)
+	{
+		FBlackLoadingScreenOverrideConfig Config;
+		Config.LoadDuration = Settings->BlackLoadingScreenLoadDuration;
+		Config.UnloadDuration = Settings->BlackLoadingScreenUnloadDuration;
+		Config.AnimationType = Settings->BlackLoadingScreenAnimationType;
+		Config.AnimationMode = Settings->BlackLoadingScreenAnimationMode;
+		return Config;
+	}
+
+	// 最终回退：返回默认配置
+	return FBlackLoadingScreenOverrideConfig();
 }
 
 bool UBlackLoadingManager::IsBlackLoadingScreenAnimationPlaying() const

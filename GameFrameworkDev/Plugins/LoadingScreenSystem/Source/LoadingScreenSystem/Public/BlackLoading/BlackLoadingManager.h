@@ -4,6 +4,7 @@
 
 #include "Containers/Ticker.h"
 #include "Subsystems/GameInstanceSubsystem.h"
+#include "LoadingScreenSettings.h"
 
 #include "BlackLoadingManager.generated.h"
 
@@ -21,6 +22,12 @@ struct FFrame;
 
 /** 黑屏加载界面可见性变化委托 */
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnBlackLoadingScreenVisibilityChanged, bool /* bIsVisible */);
+
+/** 加载动画完成委托（蓝图可调用） */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackLoadingLoadAnimationCompleted);
+
+/** 卸载动画完成委托（蓝图可调用） */
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBlackLoadingUnloadAnimationCompleted);
 
 UCLASS(MinimalAPI)
 class UBlackLoadingManager : public UGameInstanceSubsystem
@@ -46,15 +53,18 @@ public:
 	/** 黑屏加载界面是否正在播放动画 */
 	bool IsBlackLoadingScreenAnimationPlaying() const;
 
+	/** 获取当前生效的黑屏加载覆盖配置 */
+	FBlackLoadingScreenOverrideConfig GetCurrentBlackLoadingOverrideConfig() const;
+
 	/** 注册外部黑屏加载处理器 */
-	void RegisterBlackLoadingProcessor(TScriptInterface<IBlackLoadingProcessInterface> Interface);
+	void RegisterBlackLoadingProcessor(TScriptInterface<IBlackLoadingProcessInterface> Interface, const FBlackLoadingScreenOverrideConfig& OverrideConfig = FBlackLoadingScreenOverrideConfig());
 
 	/** 取消注册外部黑屏加载处理器 */
 	void UnregisterBlackLoadingProcessor(TScriptInterface<IBlackLoadingProcessInterface> Interface);
 
 	/** 打开黑屏加载界面（先销毁已有任务，再创建新任务） */
 	UFUNCTION(BlueprintCallable, Category = "LoadingScreen")
-	void OpenBlackLoadingScreen(const FString& Reason, bool bAutoClose = false);
+	void OpenBlackLoadingScreen(const FString& Reason, bool bAutoClose = false, const FBlackLoadingScreenOverrideConfig& OverrideConfig = FBlackLoadingScreenOverrideConfig());
 
 	/** 关闭黑屏加载界面 */
 	UFUNCTION(BlueprintCallable, Category = "LoadingScreen")
@@ -62,6 +72,14 @@ public:
 
 	/** 黑屏加载界面可见性变化事件 */
 	FOnBlackLoadingScreenVisibilityChanged BlackLoadingScreenVisibilityChanged;
+
+	/** 加载动画完成事件（蓝图可绑定） */
+	UPROPERTY(BlueprintAssignable, Category = "LoadingScreen")
+	FOnBlackLoadingLoadAnimationCompleted OnLoadAnimationCompleted;
+
+	/** 卸载动画完成事件（蓝图可绑定） */
+	UPROPERTY(BlueprintAssignable, Category = "LoadingScreen")
+	FOnBlackLoadingUnloadAnimationCompleted OnUnloadAnimationCompleted;
 
 private:
 	/** 每帧检查并更新黑屏加载界面 */
@@ -115,8 +133,8 @@ private:
 	/** Ticker 句柄 */
 	FTSTicker::FDelegateHandle TickerHandle;
 
-	/** 外部注册的黑屏加载处理器 */
-	TArray<TWeakInterfacePtr<IBlackLoadingProcessInterface>> ExternalBlackLoadingProcessors;
+	/** 外部注册的黑屏加载处理器，Key=处理器对象, Value=覆盖配置 */
+	TMap<TObjectPtr<UObject>, FBlackLoadingScreenOverrideConfig> ExternalBlackLoadingProcessors;
 
 	/** 由 OpenBlackLoadingScreen 创建的黑屏加载任务 */
 	UPROPERTY()

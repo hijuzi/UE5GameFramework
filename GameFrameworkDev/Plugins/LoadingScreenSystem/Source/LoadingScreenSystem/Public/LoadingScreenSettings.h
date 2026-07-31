@@ -75,6 +75,34 @@ struct LOADINGSCREENSYSTEM_API FLevelLoadingScreenOverrideConfig
 };
 
 /**
+ * 黑屏加载界面覆盖参数结构体
+ * 用于按关卡覆盖黑屏加载界面的动画参数。
+ */
+USTRUCT(BlueprintType)
+struct LOADINGSCREENSYSTEM_API FBlackLoadingScreenOverrideConfig
+{
+	GENERATED_BODY()
+
+	// ---- 动画参数 ----
+
+	/** 加载时长（秒），淡入动画时长 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override", meta=(ForceUnits=s))
+	float LoadDuration = 0.25f;
+
+	/** 卸载时长（秒），淡出动画时长 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override", meta=(ForceUnits=s))
+	float UnloadDuration = 0.2f;
+
+	/** 动画过渡类型 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override")
+	ELoadingAnimationType AnimationType = ELoadingAnimationType::Opacity;
+
+	/** 动画插值模式 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Override")
+	ELoadingAnimationMode AnimationMode = ELoadingAnimationMode::Linear;
+};
+
+/**
  * DataTable 行结构体：关卡加载界面配置表。
  * 每行对应一个关卡，控制该关卡是否显示加载界面及对应的覆盖参数。
  */
@@ -172,11 +200,11 @@ public:
 
 	// 黑屏加载界面加载时长（秒），淡入动画时长
 	UPROPERTY(config, EditAnywhere, Category=BlackLoadingScreen, meta=(ForceUnits=s))
-	float BlackLoadingScreenLoadDuration = 0.15f;
+	float BlackLoadingScreenLoadDuration = 0.25f;
 
 	// 黑屏加载界面卸载时长（秒），淡出动画时长
 	UPROPERTY(config, EditAnywhere, Category=BlackLoadingScreen, meta=(ForceUnits=s))
-	float BlackLoadingScreenUnloadDuration = 1.0f;
+	float BlackLoadingScreenUnloadDuration = 0.2f;
 
 	// 黑屏加载界面动画过渡类型
 	UPROPERTY(config, EditAnywhere, Category=BlackLoadingScreen)

@@ -2,6 +2,8 @@
 
 #include "BlackLoading/BlackLoadingScreenWidget.h"
 
+#include "BlackLoading/BlackLoadingManager.h"
+#include "LoadingScreenSettings.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SOverlay.h"
 #include "Styling/CoreStyle.h"
@@ -14,6 +16,7 @@ UBlackLoadingScreenWidget::UBlackLoadingScreenWidget(const FObjectInitializer& O
 void UBlackLoadingScreenWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
+	ResolveConfig();
 	if (MaskOverlay.IsValid())
 	{
 		MaskOverlay->SetRenderOpacity(0.0f);
@@ -136,6 +139,21 @@ void UBlackLoadingScreenWidget::FinishUnloadAnimation_Implementation()
 		MaskOverlay->SetRenderOpacity(0.0f);
 	}
 	Super::FinishUnloadAnimation_Implementation();
+}
+
+void UBlackLoadingScreenWidget::ResolveConfig()
+{
+	FBlackLoadingScreenOverrideConfig Config;
+	if (const UGameInstance* GI = GetGameInstance())
+	{
+		if (const UBlackLoadingManager* BM = GI->GetSubsystem<UBlackLoadingManager>())
+		{
+			Config = BM->GetCurrentBlackLoadingOverrideConfig();
+		}
+	}
+
+	LoadAnimationDuration = Config.LoadDuration;
+	UnloadAnimationDuration = Config.UnloadDuration;
 }
 
 float UBlackLoadingScreenWidget::ApplyEasing(float Alpha, ELoadingScreenAnimationState State)

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "LoadingScreenInterface.h"
+#include "LoadingScreenSettings.h"
 #include "UObject/Object.h"
 
 #include "BlackLoadingProcessTask.generated.h"
@@ -20,7 +21,7 @@ class UBlackLoadingProcessTask : public UObject, public IBlackLoadingProcessInte
 public:
 	/** 创建一个黑屏加载处理任务并注册到 BlackLoadingManager，使黑屏加载界面显示 */
 	UFUNCTION(BlueprintCallable, meta=(WorldContext = "WorldContextObject"))
-	static UE_API UBlackLoadingProcessTask* CreateBlackLoadingProcessTask(UObject* WorldContextObject, const FString& ShowLoadingScreenReason);
+	static UE_API UBlackLoadingProcessTask* CreateBlackLoadingProcessTask(UObject* WorldContextObject, const FString& ShowLoadingScreenReason, const FBlackLoadingScreenOverrideConfig& OverrideConfig = FBlackLoadingScreenOverrideConfig());
 
 	/** 销毁一个黑屏加载处理任务，从 BlackLoadingManager 取消注册并标记完成 */
 	UFUNCTION(BlueprintCallable)
@@ -40,7 +41,7 @@ public:
 	UE_API virtual bool ShouldShowLoadingScreen(FString& OutReason) const override;
 
 	/** 注册到 BlackLoadingManager，同时设置 Reason */
-	void RegisterWithManager(const FString& InReason);
+	void RegisterWithManager(const FString& InReason, const FBlackLoadingScreenOverrideConfig& OverrideConfig = FBlackLoadingScreenOverrideConfig());
 
 	/** 从 BlackLoadingManager 取消注册，同时设置 Reason */
 	void UnregisterFromManager(const FString& InReason);
